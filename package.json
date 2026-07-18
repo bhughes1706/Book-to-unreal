@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "check": "tsc --noEmit",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "sites:build": "opennextjs-cloudflare build"
+    "preview": "pnpm sites:build && opennextjs-cloudflare preview",
+    "sites:build": "opennextjs-cloudflare build && node scripts/prepare-sites-build.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
