@@ -30,14 +30,27 @@ The author-facing scene document is intentionally separate from the Unreal
 runtime manifest. Authoring decisions are reviewed first; runtime beats and
 geometry are compiled only after a scene is approved.
 
-## Run the scene editor
+## Run the local scene editor
+
+Scenework is a local-only web app. It binds to your computer at
+`http://127.0.0.1:3000` and does not require a cloud account or hosted backend.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm local
 ```
 
 Open `http://127.0.0.1:3000`.
+
+Edits autosave in that browser's local storage. Export YAML or JSON regularly
+if you want portable backups or need to move work between browsers.
+
+For a local production-mode build:
+
+```bash
+pnpm build
+pnpm start
+```
 
 ## Local verification
 

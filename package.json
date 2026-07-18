@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "local": "next dev --hostname 127.0.0.1",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
-    "check": "tsc --noEmit",
-    "preview": "pnpm sites:build && opennextjs-cloudflare preview",
-    "sites:build": "opennextjs-cloudflare build && node scripts/prepare-sites-build.mjs"
+    "start": "next start --hostname 127.0.0.1",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -17,12 +17,10 @@
     "yaml": "^2.8.1"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.13.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.9.0",
-    "wrangler": "^4.0.0"
+    "typescript": "^5.9.0"
   },
   "packageManager": "pnpm@10.8.1"
 }

@@ -8,7 +8,5 @@ build/
 *.egg-info/
 node_modules/
 .next/
-.open-next/
-.wrangler/
 *.tsbuildinfo
 .DS_Store
