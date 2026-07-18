@@ -9,12 +9,13 @@ export default {
       });
     }
 
-    const response = await env.ASSETS.fetch(request);
+    const url = new URL(request.url);
+    const assetRequest = new Request(url, request);
+    const response = await env.ASSETS.fetch(assetRequest);
     if (response.status !== 404) {
       return response;
     }
 
-    const url = new URL(request.url);
     if (url.pathname.includes(".")) {
       return response;
     }
