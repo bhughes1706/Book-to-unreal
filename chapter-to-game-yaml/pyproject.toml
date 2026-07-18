@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "novel-manifest"
+version = "0.1.0"
+description = "Validate chapter manifests and compile focused game-scene YAML into deterministic Unreal-ready JSON."
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML>=6.0,<7",
+  "jsonschema>=4.20,<5",
+  "python-docx>=1.1,<2",
+]
+
+[project.scripts]
+novel-manifest = "novel_manifest.cli:main"
+
+[tool.setuptools]
+packages = ["novel_manifest"]
+
+[tool.setuptools.package-data]
+novel_manifest = ["schemas/*.json"]

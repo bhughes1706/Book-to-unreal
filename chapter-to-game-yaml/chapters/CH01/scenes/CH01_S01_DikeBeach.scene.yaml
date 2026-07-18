@@ -1,0 +1,205 @@
+schema_version: 0.2.0
+kind: scene_manifest
+chapter_id: CH01
+scene_id: CH01_S01_DIKE_BEACH
+source_manifest: ../CH01.manifest.yaml
+status: approved_concept_pending_graybox
+
+canonical_constraints:
+- Painted waves are deteriorating on a concrete dike.
+- Real waves are heard on the unseen ocean side.
+- An unidentified boy traces the wall and is not explained.
+- Noah is present in the novel's beach sequence, but his game introduction is intentionally delayed.
+
+approved_adaptation_decisions:
+- Grayson begins alone.
+- The player receives time to absorb the environment.
+- The boy runs across with one hand against the wall.
+- Grayson remains alone after the boy exits and continues toward the dike walkway.
+- Noah will first appear when Grayson arrives at the reading venue.
+- Sand is gray and nearly lifeless.
+- Only threatening gray clouds are visible above the wall.
+
+design:
+  camera_note: Compare low-FOV side-view perspective against orthographic during graybox review.
+  player_start_region: lower-left third
+  boy_path_region: mid-right near wall
+  gameplay_plane: flat damp gray sand with minimal debris
+
+first_graybox_assets:
+- Unreal cube wall
+- Unreal plane beach
+- player capsule or placeholder sprite
+- boy placeholder sprite
+- camera rig
+- boy spline
+- trigger volumes
+- temporary ambience
+
+art_replacement_assets:
+- Blender modular dike wall set
+- peeling wave decal and masks
+- gray damp sand material
+- Grayson sprites
+- boy run sprites
+- base mist and ambience
+
+runtime:
+  level:
+    name: L_CH01_S01_DikeBeach
+    output_path: /Game/Chapters/CH01/Scenes/S01_DikeBeach
+    environment_kit_ids:
+    - KIT_COASTAL_INFRASTRUCTURE
+
+  camera:
+    mode: side_view_perspective
+    alternate_modes:
+    - orthographic
+    horizontal_tracking: true
+    vertical_tracking: false
+    wall_vertical_coverage_target: 0.84
+    sky_vertical_coverage_max: 0.08
+    perspective_fov_degrees: 22.0
+    orthographic_width_m: 26.0
+
+  player:
+    character_id: CHAR_GRAYSON_OCHS
+    spawn_marker_id: MARKER_PLAYER_START
+    movement_mode: horizontal
+    abilities:
+    - walk
+    - inspect
+    - lens
+    initial_input_delay_seconds: 2.5
+
+  environment:
+    ocean_visible: false
+    gameplay_lane_width_m: 3.0
+    wall:
+      resource_id: GEO_DIKE_WALL
+      placeholder_asset_id: SM_PLACEHOLDER_DIKE_WALL
+      length_m: 120.0
+      width_m: 2.0
+      height_m: 18.0
+      material_id: MAT_PLACEHOLDER_CONCRETE
+    beach:
+      resource_id: GEO_GRAY_BEACH
+      placeholder_asset_id: SM_PLACEHOLDER_BEACH
+      length_m: 120.0
+      width_m: 10.0
+      height_m: 0.2
+      material_id: MAT_PLACEHOLDER_GRAY_SAND
+
+  resources:
+    markers:
+    - id: MARKER_PLAYER_START
+      kind: player_start
+      location_m: [8.0, 0.0, 0.2]
+    - id: MARKER_PAINTED_WAVES
+      kind: trigger
+      location_m: [28.0, 0.0, 1.2]
+      radius_m: 2.0
+    - id: MARKER_BOY_SPAWN
+      kind: actor_spawn
+      location_m: [62.0, 0.0, 0.2]
+    - id: MARKER_SCENE_EXIT
+      kind: transition
+      location_m: [116.0, 0.0, 0.2]
+      radius_m: 2.0
+
+    actors:
+    - id: ACTOR_MYSTERIOUS_BOY
+      character_id: CHAR_MYSTERIOUS_BOY
+      spawn_marker_id: MARKER_BOY_SPAWN
+      placeholder_asset_id: SPR_PLACEHOLDER_BOY_RUN
+
+    paths:
+    - id: PATH_BOY_RIGHT
+      points_m:
+      - [62.0, 0.0, 0.2]
+      - [82.0, 0.0, 0.2]
+      - [108.0, 0.0, 0.2]
+
+    interactables:
+    - id: INTERACT_PAINTED_WAVES
+      marker_id: MARKER_PAINTED_WAVES
+      prompt: Inspect
+
+    lens_content:
+    - id: LENS_CH01_WAVES_NOT_REAL
+      channel: internal_observation
+      text: The waves aren't real.
+
+    audio:
+    - id: AUDIO_UNSEEN_WAVES
+      role: ambience
+      loop: true
+      placeholder_asset_id: SFX_PLACEHOLDER_UNSEEN_WAVES
+    - id: AUDIO_DIKE_WIND
+      role: ambience
+      loop: true
+      placeholder_asset_id: SFX_PLACEHOLDER_WIND
+
+  beats:
+  - id: BEAT_OPENING_STILLNESS
+    once: true
+    trigger:
+      type: begin_play
+    actions:
+    - type: set_player_input
+      enabled: false
+    - type: play_audio
+      audio_id: AUDIO_UNSEEN_WAVES
+    - type: play_audio
+      audio_id: AUDIO_DIKE_WIND
+    - type: wait
+      seconds: 2.5
+    - type: set_player_input
+      enabled: true
+
+  - id: BEAT_INSPECT_PAINTED_WAVES
+    once: true
+    trigger:
+      type: interaction
+      target_id: INTERACT_PAINTED_WAVES
+    actions:
+    - type: show_lens_content
+      content_id: LENS_CH01_WAVES_NOT_REAL
+
+  - id: BEAT_BOY_RUNS_ACROSS
+    once: true
+    trigger:
+      type: any_of
+      conditions:
+      - type: beat_completed
+        beat_id: BEAT_INSPECT_PAINTED_WAVES
+      - type: elapsed_since_beat
+        beat_id: BEAT_OPENING_STILLNESS
+        seconds: 18.0
+    actions:
+    - type: spawn_actor
+      actor_id: ACTOR_MYSTERIOUS_BOY
+    - type: follow_path
+      actor_id: ACTOR_MYSTERIOUS_BOY
+      path_id: PATH_BOY_RIGHT
+      speed_mps: 5.5
+      destroy_on_complete: true
+      completion_event_id: EVENT_BOY_EXITED
+
+  - id: BEAT_CONTINUE_ALONE
+    once: true
+    trigger:
+      type: event
+      event_id: EVENT_BOY_EXITED
+    actions:
+    - type: unlock_transition
+      marker_id: MARKER_SCENE_EXIT
+
+acceptance_tests:
+- Ocean is never visible.
+- Wall reads as oppressive at gameplay camera distance.
+- Player can remain still without UI nagging.
+- Boy event triggers once and remains unexplained.
+- Noah does not appear anywhere in this scene.
+- The exit sends Grayson toward the dike walkway alone.
+- Scene packages and runs outside the editor.

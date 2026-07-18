@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/scene_authoring.schema.json",
+  "title": "Novel Game Scene Authoring Document",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "chapter_id",
+    "scene_id",
+    "title",
+    "status",
+    "presentation",
+    "player_goal",
+    "source",
+    "dialogue",
+    "story_changes",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "kind": {
+      "const": "scene_authoring"
+    },
+    "chapter_id": {
+      "$ref": "#/$defs/id"
+    },
+    "scene_id": {
+      "$ref": "#/$defs/id"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": ["draft", "needs_author_review", "approved", "locked"]
+    },
+    "presentation": {
+      "$ref": "#/$defs/presentation"
+    },
+    "player_goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["excerpt"],
+      "properties": {
+        "excerpt": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "dialogue": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dialogue"
+      }
+    },
+    "story_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/story_change"
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "approval": {
+      "enum": [
+        "unreviewed",
+        "approved",
+        "rejected",
+        "needs_discussion"
+      ]
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "enum": ["scrolling_hd2d", "static_cinematic"]
+        }
+      }
+    },
+    "dialogue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "speaker",
+        "text",
+        "source_locked",
+        "approval"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "speaker": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_locked": {
+          "type": "boolean"
+        },
+        "approval": {
+          "$ref": "#/$defs/approval"
+        },
+        "player_choice": {
+          "$ref": "#/$defs/player_choice"
+        }
+      }
+    },
+    "player_choice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "prompt",
+        "canonical_bounds",
+        "approval",
+        "options"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_bounds": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval": {
+          "$ref": "#/$defs/approval"
+        },
+        "options": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/choice_option"
+          }
+        }
+      }
+    },
+    "choice_option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "effect", "effect_scopes"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effect": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effect_scopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "relationship",
+              "self_definition",
+              "public_perception",
+              "resources",
+              "scene_variation",
+              "later_access"
+            ]
+          }
+        }
+      }
+    },
+    "story_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "canonical",
+        "proposed",
+        "rationale",
+        "approval"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval": {
+          "$ref": "#/$defs/approval"
+        }
+      }
+    }
+  }
+}

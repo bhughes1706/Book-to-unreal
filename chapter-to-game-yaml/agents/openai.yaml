@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chapter to Game YAML"
+  short_description: "Turn novel chapters into validated game manifests"
+  default_prompt: "Use $chapter-to-game-yaml to convert this novel chapter into a traceable game YAML manifest and validate the result."

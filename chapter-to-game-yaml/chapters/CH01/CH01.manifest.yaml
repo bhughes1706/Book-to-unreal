@@ -1,0 +1,1211 @@
+schema_version: 0.1.0
+project:
+  project_id: NOVEL_GAME
+  working_title: null
+  target_format: HD-2D narrative adventure
+  engine: Unreal Engine
+  camera_model: side-view 2D characters in shallow 3D environments
+source:
+  filename: Ch1.docx
+  format: docx
+  word_count: 4792
+  sha256: 6d56dde4aff7ccfac065a8b20e04230ab3cc3ddcfe1522efd01d454fd5c213f7
+  extraction_notes:
+  - Chapter heading is “One.” and no separate chapter title is present.
+  - Soft-hyphen/line-wrap artifacts in the parsed document should be normalized only for anchor matching.
+chapter:
+  id: CH01
+  number: 1
+  title: null
+  point_of_view: first-person, Grayson Ochs
+  tense: primarily present tense
+  canonical_summary: In a climate-damaged future Osaka, writer Grayson Ochs contemplates a painted seawall, witnesses
+    a registered suicide, performs a satirical parenting-book reading, and meets an unnamed whiskey-drinking woman
+    who challenges the lies behind his comedy before leading him above the city into rare silence.
+  themes:
+  - artificial substitutes for nature
+  - commodification of life and death
+  - surveillance traded for security
+  - performance versus private grief
+  - lies and self-deception
+  - isolation and temporary escape
+  adaptation_summary: A narrative-exploration chapter built from nine compact scene units, using environmental observation,
+    controlled dialogue, transit interludes, and scripted character events rather than combat.
+characters:
+- id: CHAR_GRAYSON_OCHS
+  display_name: Grayson Ochs
+  chapter_role: protagonist and player character
+  canonical:
+    facts:
+    - Writer who publicly presents his book as comedy.
+    - Uses cynicism and jokes to deflect pain.
+    - Carries unresolved grief connected to why he wrote the book.
+    confidence: explicit
+  adaptation_notes:
+  - Primary controllable character.
+  - Internal observations should remain concise and optional where possible.
+  first_scene_id: CH01_S01_DIKE_BEACH
+- id: CHAR_NOAH
+  display_name: Noah
+  chapter_role: Grayson’s friend and tour companion
+  canonical:
+    facts:
+    - Physically imposing friend with dark skin and black eyes.
+    - Encourages Grayson not to disclose why he wrote the book.
+    - Uses drugs recreationally and supports Grayson during the reading tour.
+    confidence: explicit
+  adaptation_notes:
+  - First appears in the adaptation when Grayson arrives at the reading venue.
+  - Can function as contextual companion rather than exposition dispenser after his introduction.
+  - His absence from the beach, dike, and route-to-venue scenes is an approved departure from the novel.
+  first_scene_id: CH01_S04_BOOK_READING
+- id: CHAR_MYSTERIOUS_BOY
+  display_name: Unidentified boy
+  chapter_role: unexplained visual omen
+  canonical:
+    facts:
+    - Appears alone beside the dike at night.
+    - Moves a hand up and down along the painted wall in rhythm with the unseen waves.
+    - Hums and receives no explanation.
+    confidence: explicit
+  adaptation_notes:
+  - Approved proposal changes his movement from walking to a sudden run while keeping one hand against the wall.
+  first_scene_id: CH01_S01_DIKE_BEACH
+- id: CHAR_DIVER
+  display_name: Unidentified diver
+  chapter_role: demonstrates the suicide-credit system
+  canonical:
+    facts:
+    - Jumps from the boardwalk into the ocean after registering for suicide credits.
+    confidence: explicit
+  adaptation_notes:
+  - Keep distant and non-sensational; communicate system through environment and aftermath.
+  first_scene_id: CH01_S02_DIKE_WALKWAY
+- id: CHAR_VENUE_HOST
+  display_name: Venue host
+  chapter_role: minor guide
+  canonical:
+    facts:
+    - Teenager with acne who enthusiastically welcomes Grayson and directs him backstage.
+    confidence: explicit
+  adaptation_notes: []
+  first_scene_id: CH01_S03_WALK_TO_VENUE
+- id: CHAR_WHISKEY_WOMAN
+  display_name: Unnamed whiskey-drinking woman
+  chapter_role: mysterious challenger and catalyst
+  canonical:
+    facts:
+    - Attends the reading and asks about bacteria in baby food.
+    - Has striking dark “tornado” hair and blue eyes.
+    - Rejects synthetic whiskey and challenges Grayson’s insistence that his book is only a joke.
+    - Does not provide her name.
+    confidence: explicit
+  adaptation_notes:
+  - Preserve recognizable silhouette and refusal to be categorized.
+  first_scene_id: CH01_S04_BOOK_READING
+locations:
+- id: LOC_OSAKA_DIKE_BEACH
+  display_name: Beach below the Osaka concrete dike
+  canonical:
+    facts:
+    - Cool damp sand lies beneath a concrete dike painted with deteriorating waves.
+    - The real ocean is heard but blocked from view.
+    confidence: explicit
+  kit_ids:
+  - KIT_COASTAL_INFRASTRUCTURE
+- id: LOC_OSAKA_DIKE_WALKWAY
+  display_name: Dike-top walkway and boardwalk
+  canonical:
+    facts:
+    - A narrow path divides the bright city from the black ocean.
+    - State incentive signs line the path and a solar-lit boardwalk projects into darkness.
+    confidence: explicit
+  kit_ids:
+  - KIT_COASTAL_INFRASTRUCTURE
+  - KIT_STATE_SIGNAGE
+- id: LOC_OSAKA_URBAN_ROUTE
+  display_name: Urban route between dike, venue, hotel, and restaurant
+  canonical:
+    facts:
+    - Solar sidewalks, electric Rails, bright towers, and surveillance infrastructure define the route.
+    confidence: explicit
+  kit_ids:
+  - KIT_URBAN_TRANSIT
+- id: LOC_READING_VENUE
+  display_name: Aging book-reading venue
+  canonical:
+    facts:
+    - Unremarkable brown building with gray concrete bands and a weathered gargoyle.
+    - Small stage, dark curtain, low lights, and an audience using Lenses.
+    confidence: explicit
+  kit_ids:
+  - KIT_OLD_COMMERCIAL_INTERIOR
+- id: LOC_RAIL_CARRIAGE
+  display_name: Rail carriage and city transit view
+  canonical:
+    facts:
+    - Worn synthetic-leather seats and views of former malls converted to housing.
+    confidence: explicit
+  kit_ids:
+  - KIT_URBAN_TRANSIT
+- id: LOC_HOTEL_BAR
+  display_name: Purple-lit hotel bar
+  canonical:
+    facts:
+    - Purple illumination surrounds a glass wall of orange-red fire.
+    - Customers sit alone while Lens projections color their eyes.
+    confidence: explicit
+  kit_ids:
+  - KIT_LUXURY_INTERIOR
+- id: LOC_DRAGON_NOODLE
+  display_name: Dragon Noodle storefront
+  canonical:
+    facts:
+    - Small restaurant visited during the night walk for fortune cookies.
+    confidence: explicit
+  kit_ids:
+  - KIT_URBAN_TRANSIT
+  - KIT_OLD_COMMERCIAL_INTERIOR
+- id: LOC_CONSTRUCTION_TOWER
+  display_name: Unfinished construction tower and rooftop
+  canonical:
+    facts:
+    - Accessible through cut chain-link fencing.
+    - Repeated concrete stairs rise above the city into fog, darkness, and rare silence.
+    confidence: explicit
+  kit_ids:
+  - KIT_CONSTRUCTION_INDUSTRIAL
+world_systems:
+- id: SYS_LEADERS
+  display_name: The Leaders
+  canonical:
+    facts:
+    - Supranational governing authority associated with climate, population, and economic interventions.
+    confidence: strong_inference
+  introduced_scene_id: CH01_S01_DIKE_BEACH
+  gameplay_opportunities:
+  - Environmental propaganda and institutional interfaces.
+- id: SYS_BASIC_INCOME_EXERCISE
+  display_name: Exercise-linked basic income
+  canonical:
+    facts:
+    - Life Bracelet movement data determines whether a person continues receiving basic income.
+    confidence: explicit
+  introduced_scene_id: CH01_S02_DIKE_WALKWAY
+  gameplay_opportunities:
+  - Optional walking metric, surveillance feedback, and state signage.
+- id: SYS_SUICIDE_CREDITS
+  display_name: Registered suicide credits
+  canonical:
+    facts:
+    - Registered suicide can trigger a beneficiary payment after biometric death verification.
+    - Failure to die within the registration period results in a financial penalty.
+    confidence: explicit
+  introduced_scene_id: CH01_S02_DIKE_WALKWAY
+  gameplay_opportunities:
+  - Environmental terminal, beneficiary record, and distant scripted event.
+- id: SYS_LIFE_BRACELET
+  display_name: Life Bracelet
+  canonical:
+    facts:
+    - Tracks pulse, location, exercise, and other vital data.
+    - Used for payments and state benefit enforcement.
+    confidence: explicit
+  introduced_scene_id: CH01_S02_DIKE_WALKWAY
+  gameplay_opportunities:
+  - Diegetic interaction, payments, tracking indicator, and narrative state.
+- id: SYS_LENS
+  display_name: Lens augmented-reality system
+  canonical:
+    facts:
+    - Provides translation, news, social media, and private visual projections visible as changing colors in the
+      wearer’s eyes.
+    confidence: explicit
+  introduced_scene_id: CH01_S04_BOOK_READING
+  gameplay_opportunities:
+  - Diegetic subtitles, optional overlays, and social detachment motif.
+- id: SYS_SYNTHETIC_CONSUMABLES
+  display_name: Synthetic alcohol and food economy
+  canonical:
+    facts:
+    - Laboratory-produced alcohol is common and avoids hangovers; real whiskey is neglected and inexpensive.
+    confidence: explicit
+  introduced_scene_id: CH01_S07_HOTEL_BAR
+  gameplay_opportunities:
+  - Prop storytelling and contrast between controlled and uncontrolled experience.
+environment_kits:
+- id: KIT_COASTAL_INFRASTRUCTURE
+  display_name: Coastal infrastructure kit
+  purpose: Beach, dike wall, stairs, upper path, railing, and boardwalk.
+  module_candidates:
+  - dike wall modules
+  - wall caps and seams
+  - stairs
+  - railing
+  - boardwalk modules
+  - gray damp sand
+  - mist volumes
+  reuse_scope: Chapter 1 coastal scenes and later flood-control locations.
+- id: KIT_STATE_SIGNAGE
+  display_name: State signage and incentive kit
+  purpose: Propaganda, warnings, terminals, and crypto-credit symbols.
+  module_candidates:
+  - poster frames
+  - animated signs
+  - registration terminal
+  - payment icon decals
+  reuse_scope: All state-managed public locations.
+- id: KIT_URBAN_TRANSIT
+  display_name: Urban transit kit
+  purpose: Solar sidewalks, Rails, stations, street transitions, and city backdrops.
+  module_candidates:
+  - sidewalk modules
+  - rail crossing
+  - rail carriage
+  - station queue props
+  - modular tower backdrop
+  reuse_scope: Chapter 1 transitions and recurring Osaka exterior spaces.
+- id: KIT_OLD_COMMERCIAL_INTERIOR
+  display_name: Old commercial interior kit
+  purpose: Aging venue and small restaurant spaces.
+  module_candidates:
+  - brown concrete facade
+  - curtains
+  - small stage
+  - audience chairs
+  - back alley
+  - restaurant storefront
+  reuse_scope: Repurposed pre-collapse commercial locations.
+- id: KIT_LUXURY_INTERIOR
+  display_name: Luxury interior kit
+  purpose: Hotel, bar, polished glass, premium seating, and controlled fire features.
+  module_candidates:
+  - bar modules
+  - bottle shelves
+  - glass fire wall
+  - lounge seating
+  - elevator lobby
+  reuse_scope: Hotels, corporate interiors, and elite venues.
+- id: KIT_CONSTRUCTION_INDUSTRIAL
+  display_name: Construction and industrial kit
+  purpose: Unfinished tower, fencing, exposed stairs, and rooftop.
+  module_candidates:
+  - concrete floor plates
+  - stairs
+  - columns
+  - chain-link fence
+  - temporary barriers
+  - fog layers
+  reuse_scope: Construction sites, abandoned megastructures, and service spaces.
+scenes:
+- id: CH01_S01_DIKE_BEACH
+  order: 1
+  title: Painted Waves
+  location_id: LOC_OSAKA_DIKE_BEACH
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_MYSTERIOUS_BOY
+  world_system_ids:
+  - SYS_LEADERS
+  source_span:
+    start_anchor: The waves aren’t real.
+    end_anchor: Want to walk up there?
+  canonical:
+    events:
+    - Grayson contemplates the deteriorating painted waves and the unseen real ocean.
+    - He remembers childhood stargazing and reflects on climate-damaged Osaka.
+    - Noah sits beside him.
+    - An unidentified boy appears and traces the painted waves with his hand.
+    narrative_function:
+    - Establish Grayson’s internal voice.
+    - Introduce artificial nature, decay, and isolation.
+    - Present the boy as an unexplained disturbance.
+    entry_state: Grayson is lying on or near the damp sand with Noah beside him.
+    exit_state: Grayson and Noah decide to climb the dike.
+  adaptation:
+    player_role: Controllable Grayson in a quiet environmental opening.
+    player_goal: Absorb the scene and discover that the visible waves are only paint.
+    camera: Locked side-view or very low-FOV side camera; wall occupies roughly 80–85% of vertical frame.
+    gameplay_mode:
+    - walk
+    - observe
+    - inspect
+    beats:
+    - id: BEAT_OPENING_STILLNESS
+      trigger: BeginPlay
+      action: Delay narration and enable movement after a brief ambient hold.
+      player_experience: The player feels alone and unhurried.
+      optional: false
+    - id: BEAT_INSPECT_PAINTED_WAVES
+      trigger: Player inspects the wall or walks near it.
+      action: Present a short internal observation about the painted waves.
+      player_experience: The core artificial-versus-real contradiction becomes clear.
+      optional: false
+    - id: BEAT_BOY_RUNS_ACROSS
+      trigger: After inspection or a maximum quiet interval.
+      action: Spawn the boy offscreen and run him along the wall with one hand tracing it.
+      player_experience: A sudden unexplained event interrupts stillness.
+      optional: false
+    interactions:
+    - painted wave section
+    - gray damp sand
+    - optional look toward top of wall
+    audio_direction:
+    - Real waves crash unseen beyond the wall.
+    - Low wind and distant city hum.
+    - No music at first.
+    visual_direction:
+    - Gray lifeless sand with minimal debris.
+    - Massive worn concrete with faded amateur wave paint.
+    - Only a narrow strip of threatening gray cloud above the wall.
+    - Subtle mist at wall base.
+    transition_out: After the boy disappears, Grayson continues alone toward the stairs and dike-top walkway.
+    changes_from_source:
+    - type: character_entry_order
+      canonical: Noah is present on the beach before the boy appears and climbs the dike with Grayson.
+      proposed: Noah is absent from the beach and dike sequences. Grayson begins alone, witnesses the boy alone,
+        and continues toward the reading alone.
+      rationale: Preserve the opening's isolation and delay companionship until Grayson reaches the public reading
+        environment.
+      approval: approved_by_author
+    - type: character_action
+      canonical: The boy walks slowly while tracing the wall.
+      proposed: The boy runs across while keeping a hand against the wall.
+      rationale: Create a sharper visual interruption while preserving the motif.
+      approval: approved_by_author
+    - type: weather_and_time_emphasis
+      canonical: The prose describes night sky, moon, yellow fog, and lost stars.
+      proposed: The initial gameplay frame shows only threatening gray clouds above the wall.
+      rationale: Create a claustrophobic first composition and prevent visual release.
+      approval: approved_by_author
+  production:
+    environment_kit_ids:
+    - KIT_COASTAL_INFRASTRUCTURE
+    required_assets:
+    - id: AST_DIKE_WALL_MODULE_SET
+      display_name: Dike wall modular set
+      classification: kit
+      owner_tool: blender
+      status: planned
+    - id: AST_PAINTED_WAVES_DECAL
+      display_name: Peeling painted-wave decal
+      classification: unique
+      owner_tool: mixed
+      status: planned
+    - id: AST_GRAY_DAMP_SAND
+      display_name: Gray damp sand material
+      classification: kit
+      owner_tool: unreal
+      status: planned
+    - id: AST_GRAYSON_BASE_SPRITES
+      display_name: Grayson idle and walk sprites
+      classification: shared
+      owner_tool: 2d_art
+      status: planned
+    - id: AST_BOY_RUN_SPRITE
+      display_name: Boy running sprite
+      classification: unique
+      owner_tool: 2d_art
+      status: planned
+    - id: AST_DIKE_AMBIENCE
+      display_name: Dike wave, wind, and city ambience
+      classification: shared
+      owner_tool: audio
+      status: planned
+    system_dependencies:
+    - side-view locomotion
+    - scene director
+    - inspection interaction
+    - scripted path event
+    - subtitle/internal monologue presentation
+    risks:
+    - HD-2D readability must be proved in motion, not only in a still image.
+    - Wall texture can become visually noisy behind sprites.
+    - Boy must be noticeable without receiving explanatory UI.
+- id: CH01_S02_DIKE_WALKWAY
+  order: 2
+  title: The Black Ocean
+  location_id: LOC_OSAKA_DIKE_WALKWAY
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_DIVER
+  world_system_ids:
+  - SYS_BASIC_INCOME_EXERCISE
+  - SYS_SUICIDE_CREDITS
+  - SYS_LIFE_BRACELET
+  source_span:
+    start_anchor: We walk the stairs that lead to the narrow path
+    end_anchor: Noah says its time to go, so we go.
+  canonical:
+    events:
+    - Grayson and Noah walk between the bright city and nearly invisible ocean.
+    - They pass state incentive signs.
+    - A registered diver jumps from the boardwalk and disappears into the ocean.
+    - The narration explains Life Bracelets, suicide registration, and exercise-linked income.
+    narrative_function:
+    - Reveal the society’s economic control of bodies.
+    - Contrast city brightness with oceanic darkness.
+    - Show death as an administered transaction.
+    entry_state: The pair arrive from the beach stairs.
+    exit_state: They descend toward the city and the reading venue.
+  adaptation:
+    player_role: Walk alone and observe institutional systems.
+    player_goal: Cross the dike while processing a distant death that the city treats as routine.
+    camera: 'Side-on solitary path with split composition: city glow on one side and black ocean on the other.'
+    gameplay_mode:
+    - environmental storytelling
+    - scripted distant event
+    beats:
+    - id: BEAT_STATE_SIGNS
+      trigger: Player advances past signage.
+      action: Reveal posters and optional inspect details.
+      player_experience: The state’s incentives become increasingly disturbing.
+      optional: false
+    - id: BEAT_DIVER_EVENT
+      trigger: Player approaches boardwalk sightline.
+      action: A distant figure disappears beyond the railing; Life Bracelet terminal updates later.
+      player_experience: The player witnesses consequence without intervention.
+      optional: false
+    - id: BEAT_LEAVE_DIKE
+      trigger: Player reaches the descent after the diver sequence.
+      action: Enable descent transition toward the city route.
+      player_experience: Grayson leaves the dike alone and continues toward his obligation.
+      optional: false
+    interactions:
+    - exercise poster
+    - suicide registration sign or terminal
+    - abortion-credit poster
+    - boardwalk sightline
+    audio_direction:
+    - Waves grow louder near ocean-facing sections.
+    - City electrical buzz competes with wind.
+    - Avoid dramatic musical swell during the dive.
+    visual_direction:
+    - No visible horizon; ocean and sky merge.
+    - Solar boardwalk forms a narrow yellow line into blackness.
+    - State signage is clean and transactional against decayed infrastructure.
+    transition_out: Descend alone to the urban route.
+    changes_from_source:
+    - type: companion_removal
+      canonical: Grayson and Noah walk the dike together and leave after Noah says it is time to go.
+      proposed: Grayson crosses the dike alone and decides to continue toward the reading without Noah.
+      rationale: Delay Noah's adaptation introduction until Grayson reaches the reading venue.
+      approval: approved_by_author
+  production:
+    environment_kit_ids:
+    - KIT_COASTAL_INFRASTRUCTURE
+    - KIT_STATE_SIGNAGE
+    required_assets:
+    - id: AST_DIKE_TOP_MODULES
+      display_name: Dike walkway, stairs, railing, and boardwalk
+      classification: kit
+      owner_tool: blender
+      status: planned
+    - id: AST_STATE_POSTER_SET_A
+      display_name: State incentive poster set
+      classification: kit
+      owner_tool: 2d_art
+      status: planned
+    - id: AST_DIVER_SILHOUETTE
+      display_name: Distant diver animation
+      classification: unique
+      owner_tool: 2d_art
+      status: planned
+    - id: AST_LIFE_BRACELET_TERMINAL
+      display_name: Life Bracelet registration terminal
+      classification: shared
+      owner_tool: mixed
+      status: planned
+    system_dependencies:
+    - environmental inspection
+    - distant scripted animation
+    - content-setting support
+    risks:
+    - Sensitive subject requires careful framing and playtesting.
+    - Too much explanatory text could halt the opening pace.
+- id: CH01_S03_WALK_TO_VENUE
+  order: 3
+  title: Toward the Reading
+  location_id: LOC_OSAKA_URBAN_ROUTE
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_NOAH
+  - CHAR_VENUE_HOST
+  world_system_ids:
+  - SYS_LIFE_BRACELET
+  source_span:
+    start_anchor: Are you okay?
+    end_anchor: this way.
+  canonical:
+    events:
+    - Grayson admits he is not okay.
+    - Noah urges him not to disclose why he wrote the book.
+    - They cross Rails and follow a solar sidewalk to an old venue.
+    - A teenage host welcomes and directs Grayson backstage.
+    narrative_function:
+    - Establish the concealed personal reason behind the comedy book.
+    - Use humor to show Grayson and Noah’s relationship.
+    - Move from private dread to public obligation.
+    entry_state: Grayson and Noah descend from the dike.
+    exit_state: Grayson stands behind the stage curtain.
+  adaptation:
+    player_role: Guide Grayson alone through the city route; meet Noah upon reaching the reading venue.
+    player_goal: Reach the venue despite Grayson’s reluctance.
+    camera: Tracking side camera with bright city layers and brief crossing pauses.
+    gameplay_mode:
+    - solitary traversal
+    - transition
+    beats:
+    - id: BEAT_SOLITARY_ROUTE
+      trigger: Walk begins.
+      action: Let Grayson cross the Rails and follow the solar sidewalk alone, with brief Lens or internal observations.
+      player_experience: The isolation of the opening persists into the city.
+      optional: false
+    - id: BEAT_NOAH_AT_VENUE
+      trigger: Player reaches the venue exterior or rear entrance.
+      action: Introduce Noah for the first time in the adaptation, already waiting to support Grayson before the
+        reading.
+      player_experience: Companionship arrives only as Grayson reaches his public obligation.
+      optional: false
+    - id: BEAT_ENTER_VENUE
+      trigger: Noah introduction completes.
+      action: Venue host welcomes Grayson and directs him backstage.
+      player_experience: Control narrows as the performance approaches.
+      optional: false
+    interactions:
+    - Life Bracelet tracking light
+    - Rail crossing signal
+    - solar sidewalk
+    - venue gargoyle
+    audio_direction:
+    - City noise overwhelms ocean sound.
+    - Rail pass-bys punctuate the solitary route.
+    - No companion conversation occurs before the venue.
+    visual_direction:
+    - Buzzing white electric city contrasts with the sleeping brown venue.
+    - Gargoyle acts as a distinctive landmark.
+    transition_out: Push through backstage curtain into the reading scene.
+    changes_from_source:
+    - type: character_entry_order
+      canonical: Noah accompanies Grayson from the dike and talks with him throughout the route to the venue.
+      proposed: Grayson travels alone; Noah first appears when Grayson arrives at the reading venue.
+      rationale: Extend Grayson’s isolation and make Noah’s arrival a clear shift before the public performance.
+      approval: approved_by_author
+  production:
+    environment_kit_ids:
+    - KIT_URBAN_TRANSIT
+    - KIT_OLD_COMMERCIAL_INTERIOR
+    required_assets:
+    - id: AST_SOLAR_SIDEWALK
+      display_name: Solar sidewalk modules
+      classification: kit
+      owner_tool: unreal
+      status: planned
+    - id: AST_RAIL_CROSSING
+      display_name: Rail crossing and passing Pods
+      classification: kit
+      owner_tool: mixed
+      status: planned
+    - id: AST_VENUE_EXTERIOR
+      display_name: Venue exterior and gargoyle
+      classification: unique
+      owner_tool: blender
+      status: planned
+    system_dependencies:
+    - pedestrian crossing trigger
+    - character introduction event
+    risks:
+    - Dialogue density may compete with traversal.
+- id: CH01_S04_BOOK_READING
+  order: 4
+  title: The Comedy Performance
+  location_id: LOC_READING_VENUE
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_NOAH
+  - CHAR_VENUE_HOST
+  - CHAR_WHISKEY_WOMAN
+  world_system_ids:
+  - SYS_LENS
+  source_span:
+    start_anchor: The curtain is dark
+    end_anchor: leave the stage to applause.
+  canonical:
+    events:
+    - Grayson imagines catastrophic audience reactions before entering.
+    - He performs selections from his parenting satire.
+    - Audience members ask questions, including the unnamed woman.
+    - The audience laughs, but Grayson cannot feel the humor.
+    narrative_function:
+    - Externalize performance anxiety.
+    - Introduce the gap between public comedy and private grief.
+    - Introduce the woman before the bar encounter.
+    entry_state: Grayson is behind the curtain.
+    exit_state: Grayson leaves the stage after applause.
+  adaptation:
+    player_role: Perform as Grayson while controlling pacing, selected answers, or focus.
+    player_goal: Complete the reading while noticing the audience’s mediated attention.
+    camera: Fixed stage composition with audience depth and Lens-colored eye highlights.
+    gameplay_mode:
+    - performance dialogue
+    - timed delivery
+    - observation
+    beats:
+    - id: BEAT_CURTAIN_ANXIETY
+      trigger: Before stage entry.
+      action: Present rapidly shifting imagined outcomes using sound or brief visual overlays.
+      player_experience: The player experiences Grayson’s dread.
+      optional: false
+    - id: BEAT_READING_START
+      trigger: Player crosses curtain.
+      action: Begin structured excerpts and audience response.
+      player_experience: Public persona takes control.
+      optional: false
+    - id: BEAT_AUDIENCE_QUESTIONS
+      trigger: Reading concludes.
+      action: Offer response choices that preserve the same canonical exchange.
+      player_experience: The player expresses Grayson’s defensive style.
+      optional: false
+    - id: BEAT_WOMAN_QUESTION
+      trigger: Woman stands.
+      action: Deliver bacteria-in-baby-food exchange and establish her silhouette.
+      player_experience: The later bar recognition is prepared.
+      optional: false
+    interactions:
+    - stage microphone
+    - stool
+    - audience Lens observations
+    - optional glance toward empty exit
+    audio_direction:
+    - Dry microphone sound.
+    - Laughter becomes increasingly detached from Grayson’s emotional state.
+    - Backstage ambience leaks faintly.
+    visual_direction:
+    - Hard white stage light isolates Grayson against black curtain.
+    - Audience mostly dark with moving Lens colors in eyes.
+    transition_out: Applause transitions backstage.
+    changes_from_source:
+    - type: character_first_appearance
+      canonical: Noah has accompanied Grayson since the beach.
+      proposed: Noah is introduced at the reading venue immediately before or during Grayson’s arrival backstage.
+      rationale: This is the approved first appearance of Noah in the game adaptation.
+      approval: approved_by_author
+  production:
+    environment_kit_ids:
+    - KIT_OLD_COMMERCIAL_INTERIOR
+    required_assets:
+    - id: AST_READING_STAGE
+      display_name: Small stage, curtain, microphone, and stool
+      classification: kit
+      owner_tool: blender
+      status: planned
+    - id: AST_AUDIENCE_VARIANTS
+      display_name: Audience seated character variants
+      classification: shared
+      owner_tool: 2d_art
+      status: planned
+    - id: AST_WHISKEY_WOMAN_STAGE_SPRITE
+      display_name: Woman audience sprite and portrait
+      classification: unique
+      owner_tool: 2d_art
+      status: planned
+    system_dependencies:
+    - dialogue/performance sequencer
+    - crowd reaction controller
+    - Lens eye effect
+    risks:
+    - Long prose performance must be condensed without losing its function.
+    - Branching responses should not accidentally rewrite characterization.
+- id: CH01_S05_BACK_ALLEY
+  order: 5
+  title: After the Applause
+  location_id: LOC_READING_VENUE
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_NOAH
+  - CHAR_VENUE_HOST
+  world_system_ids: []
+  source_span:
+    start_anchor: Noah hands me a glass of water
+    end_anchor: We sit down on worn seats
+  canonical:
+    events:
+    - Noah praises Grayson’s performance.
+    - Grayson and Noah smoke in the alley.
+    - Noah’s collection of legal drugs is described.
+    - They discuss why Japan was chosen for the tour and joke about extinction.
+    - They wait for patrons to leave and board the Rail.
+    narrative_function:
+    - Release stage tension.
+    - Deepen friendship through humor.
+    - Reconnect the satire to population pressure.
+    entry_state: Grayson has just left the stage.
+    exit_state: Grayson and Noah sit aboard the Rail.
+  adaptation:
+    player_role: Recover backstage, then walk into the alley and station.
+    player_goal: Move from performance to private banter.
+    camera: Compact interior-to-alley camera transition followed by short urban traversal.
+    gameplay_mode:
+    - walk-and-talk
+    - optional smoking interaction
+    - transition
+    beats:
+    - id: BEAT_POST_SHOW
+      trigger: Backstage begins.
+      action: Noah offers water and praise.
+      player_experience: Success feels emotionally hollow.
+      optional: false
+    - id: BEAT_ALLEY_SMOKE
+      trigger: Player exits to alley.
+      action: Begin the Japan and population conversation.
+      player_experience: The chapter’s public subject gains social context.
+      optional: false
+    - id: BEAT_BOARD_RAIL
+      trigger: Patrons have cleared or dialogue completes.
+      action: Transition into carriage.
+      player_experience: The pair leave the venue district.
+      optional: false
+    interactions:
+    - water glass
+    - cigarette point
+    - view of departing patrons
+    audio_direction:
+    - Muted venue cleanup behind door.
+    - Rail and pedestrian noise in alley.
+    visual_direction:
+    - Alley should feel small and ordinary compared with the city spectacle.
+    transition_out: Board Rail carriage.
+    changes_from_source: []
+  production:
+    environment_kit_ids:
+    - KIT_OLD_COMMERCIAL_INTERIOR
+    - KIT_URBAN_TRANSIT
+    required_assets:
+    - id: AST_BACK_ALLEY_PROPS
+      display_name: Alley utility and smoking props
+      classification: kit
+      owner_tool: blender
+      status: planned
+    - id: AST_NOAH_COMPANION_SPRITES
+      display_name: Noah companion sprite set
+      classification: shared
+      owner_tool: 2d_art
+      status: planned
+    system_dependencies:
+    - companion dialogue
+    - simple crowd departure state
+    risks:
+    - Drug references may require content-setting strategy.
+- id: CH01_S06_RAIL_JOURNEY
+  order: 6
+  title: Converted Temples
+  location_id: LOC_RAIL_CARRIAGE
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_NOAH
+  world_system_ids: []
+  source_span:
+    start_anchor: The rail speeds past huge residential housing
+    end_anchor: The Rail slows in front of our skyscraper hotel.
+  canonical:
+    events:
+    - The Rail passes former shopping malls converted into refugee housing.
+    - Grayson reflects on climate migration and profit.
+    - The pair arrive at the hotel.
+    narrative_function:
+    - Deliver large-scale worldbuilding during a low-input transition.
+    - Show adaptation and exploitation in the same urban transformation.
+    entry_state: The pair sit in the Rail carriage.
+    exit_state: They step out at the hotel.
+  adaptation:
+    player_role: Observe the city during transit.
+    player_goal: Absorb visual worldbuilding without stopping the chapter.
+    camera: Interior carriage foreground with scrolling parallax city and mall-housing exterior.
+    gameplay_mode:
+    - transit observation
+    - optional inspect
+    beats:
+    - id: BEAT_MALL_HOUSING
+      trigger: Rail reaches converted mall district.
+      action: Reveal exterior housing layers and a concise internal observation.
+      player_experience: The player understands climate adaptation and profiteering.
+      optional: false
+    - id: BEAT_HOTEL_ARRIVAL
+      trigger: Transit timer or observation completes.
+      action: Slow train and open exit transition.
+      player_experience: The private hotel choice follows the public city view.
+      optional: false
+    interactions:
+    - window view
+    - worn seat stitching
+    - optional housing identification
+    audio_direction:
+    - Rail motor and track rhythm.
+    - Narration leaves space for visual comprehension.
+    visual_direction:
+    - Moving city layers should remain readable and not become a visual blur.
+    transition_out: Exit at hotel lobby/bar.
+    changes_from_source: []
+  production:
+    environment_kit_ids:
+    - KIT_URBAN_TRANSIT
+    required_assets:
+    - id: AST_RAIL_CARRIAGE
+      display_name: Rail carriage interior
+      classification: kit
+      owner_tool: blender
+      status: planned
+    - id: AST_CONVERTED_MALL_BACKDROP
+      display_name: Converted mall housing parallax set
+      classification: unique
+      owner_tool: mixed
+      status: planned
+    system_dependencies:
+    - parallax transit system
+    - streamed backdrop sequence
+    risks:
+    - Worldbuilding can feel like exposition unless the exterior tells most of the story.
+- id: CH01_S07_HOTEL_BAR
+  order: 7
+  title: Real Whiskey
+  location_id: LOC_HOTEL_BAR
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_NOAH
+  - CHAR_WHISKEY_WOMAN
+  world_system_ids:
+  - SYS_LENS
+  - SYS_SYNTHETIC_CONSUMABLES
+  - SYS_LIFE_BRACELET
+  source_span:
+    start_anchor: Drink at the bar?
+    end_anchor: She’s on the street waiting for me.
+  canonical:
+    events:
+    - Noah leaves to use morphine while Grayson enters the bar.
+    - The woman from the reading sits beside him and orders real whiskey.
+    - They discuss lying, identity, Grayson’s book, and loss of control.
+    - She takes the bottle and tells Grayson to follow.
+    - Grayson pays with his Bracelet.
+    narrative_function:
+    - Begin the central relationship.
+    - Challenge Grayson’s public explanation of his work.
+    - Contrast synthetic safety with uncontrolled experience.
+    entry_state: Grayson and Noah arrive at the hotel.
+    exit_state: Grayson follows the woman into the street.
+  adaptation:
+    player_role: Explore the bar and engage in a sustained dialogue encounter.
+    player_goal: Decide how Grayson deflects while being drawn out of control.
+    camera: Side-on lounge composition with intimate dialogue framing and strong purple/orange split light.
+    gameplay_mode:
+    - dialogue
+    - observation
+    - light prop interaction
+    beats:
+    - id: BEAT_NOAH_DEPARTS
+      trigger: Hotel arrival.
+      action: Noah chooses the balcony; Grayson enters bar alone.
+      player_experience: Grayson’s isolation resumes.
+      optional: false
+    - id: BEAT_WOMAN_SITS
+      trigger: Player orders or reaches seat.
+      action: Woman takes adjacent seat despite empty bar.
+      player_experience: An intentional intrusion begins.
+      optional: false
+    - id: BEAT_REAL_WHISKEY
+      trigger: Synthetic drink exchange.
+      action: Replace Grayson’s drink with real whiskey and begin repeated toasts.
+      player_experience: Controlled comfort gives way to bodily risk.
+      optional: false
+    - id: BEAT_LIES_DIALOGUE
+      trigger: After first drinks.
+      action: Run dialogue around comedy, lies, identity, and children.
+      player_experience: The woman identifies the concealed truth.
+      optional: false
+    - id: BEAT_LEAVE_WITH_BOTTLE
+      trigger: Dialogue threshold reached.
+      action: Woman takes bottle; Bracelet payment resolves; transition outside.
+      player_experience: Grayson follows a stranger voluntarily.
+      optional: false
+    interactions:
+    - bar seat
+    - synth cocktail
+    - real whiskey bottle
+    - Lens-lit patrons
+    - Bracelet payment
+    audio_direction:
+    - Bar ambience softened by isolated patron silence.
+    - Fire crackle against synthetic room tone.
+    - Real whiskey actions have tactile glass and liquid sound.
+    visual_direction:
+    - 'Most saturated scene so far: purple ambience and orange fire.'
+    - Woman’s face divides between purple darkness and firelight.
+    - Lens users show moving eye color; woman does not.
+    transition_out: Follow woman to night street.
+    changes_from_source: []
+  production:
+    environment_kit_ids:
+    - KIT_LUXURY_INTERIOR
+    required_assets:
+    - id: AST_HOTEL_BAR_SET
+      display_name: Hotel bar environment set
+      classification: unique
+      owner_tool: blender
+      status: planned
+    - id: AST_REAL_WHISKEY_PROPS
+      display_name: Whiskey bottle and glasses
+      classification: shared
+      owner_tool: blender
+      status: planned
+    - id: AST_LENS_PATRON_VARIANTS
+      display_name: Lens-user patron variants
+      classification: shared
+      owner_tool: 2d_art
+      status: planned
+    - id: AST_WHISKEY_WOMAN_BAR_SPRITES
+      display_name: Woman bar sprite and portraits
+      classification: unique
+      owner_tool: 2d_art
+      status: planned
+    system_dependencies:
+    - branching dialogue presentation
+    - drink-state presentation
+    - Bracelet payment interaction
+    - character portrait system
+    risks:
+    - Conversation is long and philosophical; interaction rhythm must prevent visual stasis.
+    - Alcohol state should affect presentation without impairing accessibility.
+- id: CH01_S08_NIGHT_WALK
+  order: 8
+  title: Fortunes
+  location_id: LOC_OSAKA_URBAN_ROUTE
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_WHISKEY_WOMAN
+  world_system_ids: []
+  source_span:
+    start_anchor: We walk.
+    end_anchor: continues to walk.
+  canonical:
+    events:
+    - Grayson and the woman share whiskey and a cigarette while walking.
+    - She retrieves fortune cookies from Dragon Noodle.
+    - Grayson’s fortune predicts regaining something lost.
+    - She hides her own fortune and leads him toward a construction zone.
+    narrative_function:
+    - Create temporary playfulness and intimacy.
+    - Plant a prediction about Grayson’s loss.
+    - Preserve mystery around the woman.
+    entry_state: They leave the hotel with the whiskey bottle.
+    exit_state: They reach the construction site.
+  adaptation:
+    player_role: Walk beside the woman through the city.
+    player_goal: Share a vice-driven interlude and receive an ambiguous promise.
+    camera: Tracking side-view with softened focus and moving urban light.
+    gameplay_mode:
+    - walk-and-talk
+    - small prop interaction
+    - optional dialogue response
+    beats:
+    - id: BEAT_SHARED_VICES
+      trigger: Walk begins.
+      action: Animate passing bottle and cigarette between characters.
+      player_experience: Their connection becomes physical and informal.
+      optional: false
+    - id: BEAT_FORTUNE_COOKIE
+      trigger: Reach Dragon Noodle.
+      action: Woman returns with cookies; player opens Grayson’s fortune.
+      player_experience: A simple object carries a long-term promise.
+      optional: false
+    - id: BEAT_HIDDEN_FORTUNE
+      trigger: Ask about her paper.
+      action: She refuses and mood shifts.
+      player_experience: Mystery returns after playfulness.
+      optional: false
+    interactions:
+    - whiskey bottle
+    - cigarette
+    - fortune cookie
+    - fortune slip
+    - Dragon Noodle storefront
+    audio_direction:
+    - City ambience becomes pleasantly softened from Grayson’s perspective.
+    - Small paper crack and restaurant door sounds.
+    visual_direction:
+    - Urban light remains artificial but briefly less hostile.
+    - Do not make intoxication visually nauseating.
+    transition_out: Enter construction-zone fence breach.
+    changes_from_source: []
+  production:
+    environment_kit_ids:
+    - KIT_URBAN_TRANSIT
+    - KIT_OLD_COMMERCIAL_INTERIOR
+    required_assets:
+    - id: AST_DRAGON_NOODLE_STOREFRONT
+      display_name: Dragon Noodle storefront
+      classification: unique
+      owner_tool: blender
+      status: planned
+    - id: AST_FORTUNE_COOKIE
+      display_name: Fortune cookie and paper props
+      classification: unique
+      owner_tool: blender
+      status: planned
+    - id: AST_SHARED_WALK_ANIMS
+      display_name: Shared bottle and cigarette animations
+      classification: unique
+      owner_tool: 2d_art
+      status: planned
+    system_dependencies:
+    - companion paired-animation states
+    - small item reveal UI
+    risks:
+    - Paired sprite interactions are animation-expensive.
+- id: CH01_S09_CONSTRUCTION_TOWER
+  order: 9
+  title: Above the City
+  location_id: LOC_CONSTRUCTION_TOWER
+  time_context: Night
+  character_ids:
+  - CHAR_GRAYSON_OCHS
+  - CHAR_WHISKEY_WOMAN
+  world_system_ids: []
+  source_span:
+    start_anchor: We return across the solar sidewalks
+    end_anchor: Exactly.” We lean against each other.
+  canonical:
+    events:
+    - The woman leads Grayson through cut fencing into an unfinished tower.
+    - They climb repeated concrete stairs above the city noise.
+    - Fog obscures her as she calls from the darkness.
+    - They stand over the orange city glow and lean together in rare silence.
+    narrative_function:
+    - End the chapter with vertical escape, vulnerability, and temporary connection.
+    - Contrast the city’s artificial brightness with darkness that feels alive.
+    entry_state: They enter the construction site.
+    exit_state: They remain together above the city in fog and silence.
+  adaptation:
+    player_role: Climb and follow a voice through fog.
+    player_goal: Reach a place where silence and isolation feel restorative rather than empty.
+    camera: Side-view ascent using repeated modular floors, then a wide rooftop composition with deep fog.
+    gameplay_mode:
+    - vertical traversal
+    - audio navigation
+    - cinematic observation
+    beats:
+    - id: BEAT_ENTER_CUT_FENCE
+      trigger: Player locates breach.
+      action: Pass into dark unfinished structure.
+      player_experience: The city’s managed spaces are left behind.
+      optional: false
+    - id: BEAT_ASCENT
+      trigger: Player climbs modular stair sequences.
+      action: Reduce city volume and visible light with elevation.
+      player_experience: Silence becomes a measurable reward.
+      optional: false
+    - id: BEAT_LOST_IN_FOG
+      trigger: Fog threshold reached.
+      action: Woman disappears; player follows spatial voice cues.
+      player_experience: Vulnerability replaces playful certainty.
+      optional: false
+    - id: BEAT_CITY_REVEAL
+      trigger: Player reaches rooftop edge.
+      action: Reveal diffuse orange city below and blackness above.
+      player_experience: The scale of the world returns without its noise.
+      optional: false
+    - id: BEAT_CHAPTER_END
+      trigger: Final dialogue completes.
+      action: Characters lean together; hold the frame before fade.
+      player_experience: Connection and singularity coexist.
+      optional: false
+    interactions:
+    - cut fence
+    - stairs
+    - rooftop edge
+    - voice-location cues
+    audio_direction:
+    - City noise fades floor by floor.
+    - Wind, distant ocean, and structure creaks remain.
+    - Use music sparingly or not at all at the final hold.
+    visual_direction:
+    - Repeated concrete floors form tooth-like vertical rhythm.
+    - Fog hides detail and occasionally the woman.
+    - Orange city glow below; near-black sky above.
+    transition_out: Hold and fade to chapter completion.
+    changes_from_source: []
+  production:
+    environment_kit_ids:
+    - KIT_CONSTRUCTION_INDUSTRIAL
+    required_assets:
+    - id: AST_CONSTRUCTION_TOWER_SET
+      display_name: Modular unfinished tower set
+      classification: kit
+      owner_tool: blender
+      status: planned
+    - id: AST_ROOFTOP_FOG
+      display_name: Layered rooftop fog system
+      classification: shared
+      owner_tool: unreal
+      status: planned
+    - id: AST_SPATIAL_VOICE_CUES
+      display_name: Woman spatial voice cues
+      classification: unique
+      owner_tool: audio
+      status: planned
+    system_dependencies:
+    - vertical traversal
+    - spatial audio guidance
+    - chapter completion state
+    risks:
+    - Repeated ascent must be short enough to remain evocative rather than tedious.
+    - Fog cannot obscure navigation or sprite readability excessively.
+content_notes:
+- category: suicide
+  description: A distant suicide and institutional suicide-credit system are central to the dike-top scene. Presentation
+    should avoid glamorization and support content settings.
+  scene_ids:
+  - CH01_S02_DIKE_WALKWAY
+- category: reproductive politics
+  description: State abortion-credit signage appears as dystopian social commentary. Adaptation requires deliberate
+    framing and review.
+  scene_ids:
+  - CH01_S02_DIKE_WALKWAY
+- category: substance use
+  description: Frequent smoking, alcohol, cocaine, marijuana, pills, and morphine are referenced or used.
+  scene_ids:
+  - CH01_S01_DIKE_BEACH
+  - CH01_S05_BACK_ALLEY
+  - CH01_S07_HOTEL_BAR
+  - CH01_S08_NIGHT_WALK
+unresolved_questions:
+- id: Q_CH01_GAMEPLAY_BRANCHING
+  question: Should Chapter 1 dialogue choices alter later relationships or primarily express Grayson’s tone?
+  affects:
+  - CH01_S04_BOOK_READING
+  - CH01_S07_HOTEL_BAR
+  status: open
+  answer: null
+- id: Q_CH01_WHISKEY_WOMAN_NAME
+  question: Should the game preserve the woman’s lack of a name throughout Chapter 1?
+  affects:
+  - CHAR_WHISKEY_WOMAN
+  - CH01_S07_HOTEL_BAR
+  - CH01_S08_NIGHT_WALK
+  - CH01_S09_CONSTRUCTION_TOWER
+  status: open
+  answer: null
+- id: Q_CH01_LENS_UI
+  question: How much of the Lens should be a visible player interface versus environmental fiction?
+  affects:
+  - SYS_LENS
+  - CH01_S04_BOOK_READING
+  status: open
+  answer: null

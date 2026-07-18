@@ -1,0 +1,21 @@
+Chapter → Game YAML Skill v0.4 validation
+
+PASS: full Chapter 1 manifest validates against source DOCX
+PASS: focused dike scene validates against strict scene schema
+PASS: focused scene resolves against Chapter 1 characters, scenes, and environment kits
+PASS: scene compiles to normalized Unreal-facing JSON
+PASS: repeated compiles produce byte-identical output
+PASS: installable wheel works outside the source tree
+PASS: invalid resource references produce exit code 1 and JSON diagnostics
+PASS: Python compileall completed
+PASS: 10 regression tests
+
+Compiled fixture SHA-256: 2e2ef8dce3538de213a6800d9fdad65b583affb8d2eb158d3f9f6d04603bf00a
+Wheel SHA-256: a160fcca8361e197d016fba90aaf28a792c568efae22d8605e9b2410b291e924
+
+Test command:
+PYTHONPATH=. python -m unittest discover -s tests -v
+
+Compile command:
+python tools/novel_manifest.py compile chapters/CH01/scenes/CH01_S01_DikeBeach.scene.yaml \
+  --output chapters/CH01/compiled/CH01_S01_DikeBeach.compiled.json

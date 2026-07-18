@@ -1,0 +1,53 @@
+schema_version: 0.2.0
+project:
+  project_id: PROJECT_ID
+  working_title: null
+  target_format: HD-2D narrative adventure
+  engine: Unreal Engine
+  camera_model: side-view hybrid
+author_directives: []
+game_design:
+  dialogue_choices:
+    enabled: true
+    all_presented_choices_affect_state: true
+    state_model_status: deferred
+    consequence_timing: immediate_or_delayed
+    candidate_effect_scopes:
+    - scene_variation
+    - relationship
+    - narrative_access
+    - world_state
+    - resources
+    - self_definition
+    rules: []
+  player_interface:
+    primary_diegetic_system_id: SYS_PRIMARY_INTERFACE
+    viewpoint_rule: ''
+    diegetic_channels: []
+    non_diegetic_exceptions:
+    - pause menu
+    - settings
+    - accessibility controls
+    introduction_policy: ''
+source:
+  filename: chapter.docx
+  format: docx
+  word_count: 0
+  sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+  extraction_notes: []
+chapter:
+  id: CH00
+  number: 1
+  title: null
+  point_of_view: unknown
+  tense: unknown
+  canonical_summary: ''
+  themes: []
+  adaptation_summary: ''
+characters: []
+locations: []
+world_systems: []
+environment_kits: []
+scenes: []
+content_notes: []
+unresolved_questions: []

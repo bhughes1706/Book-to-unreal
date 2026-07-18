@@ -1,0 +1,59 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S03_WALK_TO_VENUE
+title: Toward the Reading
+status: needs_author_review
+presentation:
+  mode: scrolling_hd2d
+player_goal: Reach the venue despite Grayson’s reluctance.
+source:
+  excerpt: |-
+    “Are you okay?” He asks while walking toward a brown building that appears asleep in the bustling city.
+
+    “No. I don’t think I am.” I say, but don’t look at him.
+
+    “They don’t need to know.” Noah says. “Why you wrote it is none of their concern.”
+
+    “That makes me feel like a fake, a liar.”
+
+    “What if I tell them why I wrote it?” I say as we begin following the solar sidewalk on the other side of the Rails.
+
+    “Then they won’t understand your book, they’ll put it in that box and it won’t be the same.”
+dialogue:
+  - id: DIALOGUE_NOAH_DONT_NEED_TO_KNOW
+    speaker: Noah
+    text: They don’t need to know. Why you wrote it is none of their concern.
+    source_locked: true
+    approval: approved
+  - id: DIALOGUE_GRAYSON_FAKE
+    speaker: Grayson
+    text: That makes me feel like a fake, a liar.
+    source_locked: true
+    approval: unreviewed
+    player_choice:
+      id: CHOICE_DISCLOSE_BOOK_REASON
+      prompt: How does Grayson answer Noah?
+      canonical_bounds: The reading still happens. The choice changes Grayson’s expressed intent and relationship state, not the chapter’s event order.
+      approval: needs_discussion
+      options:
+        - id: OPTION_TELL_THE_TRUTH
+          label: I should tell them the truth.
+          effect: Grayson leans toward disclosure and challenges Noah’s protective instinct.
+          effect_scopes:
+            - self_definition
+            - relationship
+        - id: OPTION_KEEP_IT_PRIVATE
+          label: Maybe it is none of their concern.
+          effect: Grayson accepts the performance boundary while carrying the discomfort forward.
+          effect_scopes:
+            - self_definition
+            - scene_variation
+story_changes:
+  - id: CHANGE_NOAH_REJOINS_AT_VENUE
+    type: character_entry_order
+    canonical: Noah accompanies Grayson from the beach toward the venue.
+    proposed: Grayson travels alone; Noah joins him at the venue approach so this dialogue moves closer to the reading.
+    rationale: Protect the approved solitary opening while retaining the conversation’s function.
+    approval: needs_discussion
+notes: ""
