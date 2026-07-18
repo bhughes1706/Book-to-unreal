@@ -48,6 +48,56 @@ export function toAuthoringDocument(scene: SceneDraft) {
       rationale: change.rationale,
       approval: change.status,
     })),
+    staging: {
+      npcs: scene.npcs.map((npc) => ({
+        id: npc.id,
+        display_name: npc.displayName,
+        role: npc.role,
+        presence: npc.presence,
+        behavior: npc.behavior,
+        ...(npc.entranceBeatId
+          ? { entrance_beat_id: npc.entranceBeatId }
+          : {}),
+        ...(npc.exitBeatId ? { exit_beat_id: npc.exitBeatId } : {}),
+        staging_notes: npc.stagingNotes,
+        approval: npc.status,
+      })),
+      items: scene.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        kind: item.kind,
+        initial_state: item.initialState,
+        persistence: item.persistence,
+        interaction_prompt: item.interactionPrompt,
+        outcome: item.outcome,
+        approval: item.status,
+      })),
+      hud_events: scene.hudEvents.map((event) => ({
+        id: event.id,
+        channel: event.channel,
+        text: event.text,
+        trigger: event.trigger,
+        dismiss_mode: event.dismissMode,
+        duration_seconds: event.durationSeconds,
+        approval: event.status,
+      })),
+      beats: scene.beats.map((beat) => ({
+        id: beat.id,
+        title: beat.title,
+        trigger: {
+          type: beat.triggerType,
+          ...(beat.triggerTarget ? { target: beat.triggerTarget } : {}),
+        },
+        optional: beat.optional,
+        actions: beat.actions.map((action) => ({
+          id: action.id,
+          type: action.type,
+          ...(action.targetId ? { target_id: action.targetId } : {}),
+          detail: action.detail,
+        })),
+        approval: beat.status,
+      })),
+    },
     notes: scene.notes,
   };
 }
@@ -71,6 +121,17 @@ export function toNormalizedDocument(scene: SceneDraft) {
       storyChangesApproved: scene.storyChanges.filter(
         (item) => item.status === "approved",
       ).length,
+      staging: {
+        npcsApproved: scene.npcs.filter((item) => item.status === "approved")
+          .length,
+        itemsApproved: scene.items.filter((item) => item.status === "approved")
+          .length,
+        hudEventsApproved: scene.hudEvents.filter(
+          (item) => item.status === "approved",
+        ).length,
+        beatsApproved: scene.beats.filter((item) => item.status === "approved")
+          .length,
+      },
     },
     authoring,
   };

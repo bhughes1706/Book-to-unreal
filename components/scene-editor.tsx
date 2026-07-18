@@ -6,6 +6,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Clapperboard,
   Circle,
   Clock3,
   Download,
@@ -35,6 +36,7 @@ import {
   useState,
 } from "react";
 
+import { StagingEditor } from "@/components/staging-editor";
 import { chapterSeed } from "@/lib/chapter-seed";
 import type {
   ChapterDraft,
@@ -74,7 +76,12 @@ const effectScopes: { value: EffectScope; label: string }[] = [
   { value: "later_access", label: "Later access" },
 ];
 
-type WorkspaceTab = "source" | "dialogue" | "changes" | "output";
+type WorkspaceTab =
+  | "source"
+  | "dialogue"
+  | "staging"
+  | "changes"
+  | "output";
 type OutputMode = "yaml" | "json";
 
 function makeId(prefix: string, value: string) {
@@ -86,6 +93,24 @@ function makeId(prefix: string, value: string) {
     .toUpperCase()
     .slice(0, 44);
   return `${prefix}_${slug || Date.now()}`;
+}
+
+function migrateChapter(saved: ChapterDraft): ChapterDraft {
+  return {
+    ...saved,
+    scenes: saved.scenes.map((scene) => {
+      const seededScene = chapterSeed.scenes.find(
+        (candidate) => candidate.id === scene.id,
+      );
+      return {
+        ...scene,
+        npcs: scene.npcs ?? seededScene?.npcs ?? [],
+        items: scene.items ?? seededScene?.items ?? [],
+        hudEvents: scene.hudEvents ?? seededScene?.hudEvents ?? [],
+        beats: scene.beats ?? seededScene?.beats ?? [],
+      };
+    }),
+  };
 }
 
 function downloadText(filename: string, content: string, type: string) {
@@ -154,8 +179,8 @@ export function SceneEditor() {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        setChapter(JSON.parse(saved) as ChapterDraft);
-        setNotice("Recovered your last local edit.");
+        setChapter(migrateChapter(JSON.parse(saved) as ChapterDraft));
+        setNotice("Recovered your local edit and updated its staging data.");
       } catch {
         window.localStorage.removeItem(STORAGE_KEY);
       }
@@ -391,12 +416,74 @@ export function SceneEditor() {
         });
       }
     });
+    if (activeScene.beats.length === 0) issues.push("at least one scene beat");
+    const beatIds = new Set(activeScene.beats.map((beat) => beat.id));
+    const npcIds = new Set(activeScene.npcs.map((npc) => npc.id));
+    const itemIds = new Set(activeScene.items.map((item) => item.id));
+    const hudIds = new Set(activeScene.hudEvents.map((event) => event.id));
+    const dialogueIds = new Set(
+      activeScene.dialogue.map((dialogue) => dialogue.id),
+    );
+    activeScene.npcs.forEach((npc) => {
+      if (!npc.displayName.trim() || !npc.role.trim()) {
+        issues.push(`${npc.id} identity`);
+      }
+      if (npc.presence === "enters_on_beat" && !npc.entranceBeatId) {
+        issues.push(`${npc.id} entrance beat`);
+      }
+      if (
+        (npc.entranceBeatId && !beatIds.has(npc.entranceBeatId)) ||
+        (npc.exitBeatId && !beatIds.has(npc.exitBeatId))
+      ) {
+        issues.push(`${npc.id} beat reference`);
+      }
+    });
+    activeScene.items.forEach((item) => {
+      if (!item.name.trim() || !item.outcome.trim()) {
+        issues.push(`${item.id} interaction outcome`);
+      }
+    });
+    activeScene.hudEvents.forEach((event) => {
+      if (!event.text.trim() || !event.trigger.trim()) {
+        issues.push(`${event.id} content`);
+      }
+      if (event.dismissMode === "timed" && event.durationSeconds <= 0) {
+        issues.push(`${event.id} duration`);
+      }
+    });
+    activeScene.beats.forEach((beat) => {
+      if (!beat.title.trim()) issues.push(`${beat.id} title`);
+      if (beat.triggerType !== "begin_play" && !beat.triggerTarget.trim()) {
+        issues.push(`${beat.id} trigger`);
+      }
+      if (
+        beat.triggerType === "beat_completed" &&
+        !beatIds.has(beat.triggerTarget)
+      ) {
+        issues.push(`${beat.id} trigger reference`);
+      }
+      if (beat.actions.length === 0) issues.push(`${beat.id} action`);
+      beat.actions.forEach((action) => {
+        if (!action.detail.trim()) issues.push(`${action.id} direction`);
+        const targetExists =
+          action.type === "show_hud"
+            ? hudIds.has(action.targetId)
+            : action.type === "spawn_npc" || action.type === "move_npc"
+              ? npcIds.has(action.targetId)
+              : action.type === "give_item" || action.type === "update_item"
+                ? itemIds.has(action.targetId)
+                : action.type === "play_dialogue"
+                  ? dialogueIds.has(action.targetId)
+                  : true;
+        if (!targetExists) issues.push(`${action.id} target`);
+      });
+    });
     if (issues.length) {
       setNotice(`Needs attention: ${issues.join(", ")}.`);
       return;
     }
     setNotice(
-      `Scene checks passed: ${activeScene.dialogue.length} dialogue unit${activeScene.dialogue.length === 1 ? "" : "s"}, ${activeScene.storyChanges.length} story change${activeScene.storyChanges.length === 1 ? "" : "s"}.`,
+      `Scene checks passed: ${activeScene.beats.length} beat${activeScene.beats.length === 1 ? "" : "s"}, ${activeScene.npcs.length} NPC${activeScene.npcs.length === 1 ? "" : "s"}, ${activeScene.items.length} item${activeScene.items.length === 1 ? "" : "s"}, and ${activeScene.hudEvents.length} HUD event${activeScene.hudEvents.length === 1 ? "" : "s"}.`,
     );
   };
 
@@ -420,6 +507,14 @@ export function SceneEditor() {
 
   const output =
     outputMode === "yaml" ? sceneToYaml(activeScene) : sceneToJson(activeScene);
+  const stagingReviewed =
+    activeScene.beats.length > 0 &&
+    [
+      ...activeScene.beats,
+      ...activeScene.npcs,
+      ...activeScene.items,
+      ...activeScene.hudEvents,
+    ].every((item) => item.status !== "unreviewed");
 
   return (
     <main className="app-shell">
@@ -590,6 +685,7 @@ export function SceneEditor() {
             [
               ["source", "Source", FileText],
               ["dialogue", "Dialogue", MessageSquareQuote],
+              ["staging", "Staging", Clapperboard],
               ["changes", "Story changes", GitBranch],
               ["output", "Output", FileJson2],
             ] as const
@@ -605,6 +701,9 @@ export function SceneEditor() {
               {label}
               {value === "dialogue" && activeScene.dialogue.length > 0 && (
                 <span className="tab-count">{activeScene.dialogue.length}</span>
+              )}
+              {value === "staging" && activeScene.beats.length > 0 && (
+                <span className="tab-count">{activeScene.beats.length}</span>
               )}
               {value === "changes" && activeScene.storyChanges.length > 0 && (
                 <span className="tab-count">
@@ -952,6 +1051,14 @@ export function SceneEditor() {
             </section>
           )}
 
+          {tab === "staging" && (
+            <StagingEditor
+              scene={activeScene}
+              onChange={updateScene}
+              onNotice={setNotice}
+            />
+          )}
+
           {tab === "changes" && (
             <section className="editor-section">
               <div className="section-heading">
@@ -1076,8 +1183,9 @@ export function SceneEditor() {
               </pre>
               <div className="output-note">
                 <ShieldCheck size={16} />
-                This is the authoring layer. Runtime beats and Unreal geometry
-                remain a later compilation target.
+                Staging captures author intent. The runtime compiler still owns
+                exact geometry, assets, coordinates, and executable Unreal
+                actions.
               </div>
             </section>
           )}
@@ -1203,9 +1311,10 @@ export function SceneEditor() {
                     activeScene.storyChanges.every(
                       (change) => change.status !== "unreviewed",
                     ),
+                    stagingReviewed,
                   ].filter(Boolean).length
                 }
-                /4
+                /5
               </span>
             </div>
             <ul className="readiness-list">
@@ -1254,6 +1363,16 @@ export function SceneEditor() {
                   )}
                 </span>
                 Changes reviewed
+              </li>
+              <li className={stagingReviewed ? "done" : ""}>
+                <span>
+                  {stagingReviewed ? (
+                    <Check size={12} />
+                  ) : (
+                    <Circle size={10} />
+                  )}
+                </span>
+                Staging reviewed
               </li>
             </ul>
           </section>

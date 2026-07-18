@@ -18,6 +18,10 @@ const scene = (
   sourceExcerpt: "",
   dialogue: [],
   storyChanges: [],
+  npcs: [],
+  items: [],
+  hudEvents: [],
+  beats: [],
   notes: "",
 });
 
@@ -56,6 +60,115 @@ export const chapterSeed: ChapterDraft = {
             "Grayson begins alone. Noah first appears when Grayson reaches the reading venue.",
           rationale:
             "Preserve the opening isolation and make companionship a clear emotional shift.",
+          status: "approved",
+        },
+      ],
+      npcs: [
+        {
+          id: "ACTOR_MYSTERIOUS_BOY",
+          displayName: "Unidentified boy",
+          role: "Unexplained visual omen",
+          presence: "enters_on_beat",
+          behavior: "follow_path",
+          entranceBeatId: "BEAT_BOY_RUNS_ACROSS",
+          exitBeatId: "BEAT_CONTINUE_ALONE",
+          stagingNotes:
+            "Run beside the wall with one hand tracing the painted waves; remain unexplained.",
+          status: "approved",
+        },
+      ],
+      items: [
+        {
+          id: "INTERACT_PAINTED_WAVES",
+          name: "Painted waves",
+          kind: "environmental_interactable",
+          initialState: "visible",
+          persistence: "scene",
+          interactionPrompt: "Inspect",
+          outcome: "Reveal that the visible waves are deteriorating paint.",
+          status: "approved",
+        },
+      ],
+      hudEvents: [
+        {
+          id: "HUD_WAVES_NOT_REAL",
+          channel: "internal_observation",
+          text: "The waves aren't real.",
+          trigger: "Player inspects the painted waves.",
+          dismissMode: "player_dismiss",
+          durationSeconds: 0,
+          status: "approved",
+        },
+      ],
+      beats: [
+        {
+          id: "BEAT_OPENING_STILLNESS",
+          title: "Opening stillness",
+          triggerType: "begin_play",
+          triggerTarget: "",
+          optional: false,
+          actions: [
+            {
+              id: "ACTION_START_AMBIENCE",
+              type: "play_audio",
+              targetId: "AUDIO_UNSEEN_WAVES",
+              detail: "Hold on unseen waves and wind before enabling movement.",
+            },
+          ],
+          status: "approved",
+        },
+        {
+          id: "BEAT_INSPECT_PAINTED_WAVES",
+          title: "Inspect the painted waves",
+          triggerType: "interaction",
+          triggerTarget: "INTERACT_PAINTED_WAVES",
+          optional: false,
+          actions: [
+            {
+              id: "ACTION_SHOW_WAVES_OBSERVATION",
+              type: "show_hud",
+              targetId: "HUD_WAVES_NOT_REAL",
+              detail: "Present as a quiet internal observation.",
+            },
+          ],
+          status: "approved",
+        },
+        {
+          id: "BEAT_BOY_RUNS_ACROSS",
+          title: "Boy runs across",
+          triggerType: "beat_completed",
+          triggerTarget: "BEAT_INSPECT_PAINTED_WAVES",
+          optional: false,
+          actions: [
+            {
+              id: "ACTION_SPAWN_BOY",
+              type: "spawn_npc",
+              targetId: "ACTOR_MYSTERIOUS_BOY",
+              detail: "Spawn just outside the camera frame.",
+            },
+            {
+              id: "ACTION_MOVE_BOY",
+              type: "move_npc",
+              targetId: "ACTOR_MYSTERIOUS_BOY",
+              detail: "Run along the wall and exit without explanation.",
+            },
+          ],
+          status: "approved",
+        },
+        {
+          id: "BEAT_CONTINUE_ALONE",
+          title: "Continue alone",
+          triggerType: "event",
+          triggerTarget: "EVENT_BOY_EXITED",
+          optional: false,
+          actions: [
+            {
+              id: "ACTION_UNLOCK_DIKE_EXIT",
+              type: "unlock_exit",
+              targetId: "CH01_S02_DIKE_WALKWAY",
+              detail: "Let Grayson continue toward the dike walkway alone.",
+            },
+          ],
           status: "approved",
         },
       ],
@@ -132,6 +245,117 @@ export const chapterSeed: ChapterDraft = {
           rationale:
             "Protect the approved solitary opening while retaining the conversation’s function.",
           status: "needs_discussion",
+        },
+      ],
+      npcs: [
+        {
+          id: "ACTOR_NOAH",
+          displayName: "Noah",
+          role: "Companion and protective confidant",
+          presence: "enters_on_beat",
+          behavior: "follow_player",
+          entranceBeatId: "BEAT_NOAH_REJOINS",
+          exitBeatId: "",
+          stagingNotes:
+            "Join near the venue approach so the conversation lands immediately before the reading.",
+          status: "needs_discussion",
+        },
+        {
+          id: "ACTOR_VENUE_HOST",
+          displayName: "Venue host",
+          role: "Minor guide",
+          presence: "enters_on_beat",
+          behavior: "scripted",
+          entranceBeatId: "BEAT_ENTER_VENUE",
+          exitBeatId: "",
+          stagingNotes:
+            "Welcome Grayson enthusiastically and direct him backstage.",
+          status: "unreviewed",
+        },
+      ],
+      items: [
+        {
+          id: "INTERACT_VENUE_ENTRANCE",
+          name: "Venue entrance",
+          kind: "environmental_interactable",
+          initialState: "visible",
+          persistence: "scene",
+          interactionPrompt: "Enter",
+          outcome: "Complete the approach and move Grayson backstage.",
+          status: "unreviewed",
+        },
+      ],
+      hudEvents: [
+        {
+          id: "HUD_REACH_READING",
+          channel: "objective",
+          text: "Reach the reading venue.",
+          trigger: "The walk toward the venue begins.",
+          dismissMode: "beat_advance",
+          durationSeconds: 0,
+          status: "unreviewed",
+        },
+      ],
+      beats: [
+        {
+          id: "BEAT_WALK_BEGINS",
+          title: "Walk toward the venue",
+          triggerType: "begin_play",
+          triggerTarget: "",
+          optional: false,
+          actions: [
+            {
+              id: "ACTION_SHOW_READING_OBJECTIVE",
+              type: "show_hud",
+              targetId: "HUD_REACH_READING",
+              detail: "Keep the objective understated and non-blocking.",
+            },
+          ],
+          status: "unreviewed",
+        },
+        {
+          id: "BEAT_NOAH_REJOINS",
+          title: "Noah rejoins",
+          triggerType: "player_enters",
+          triggerTarget: "Venue approach",
+          optional: false,
+          actions: [
+            {
+              id: "ACTION_SPAWN_NOAH",
+              type: "spawn_npc",
+              targetId: "ACTOR_NOAH",
+              detail: "Bring Noah into frame from the venue side.",
+            },
+            {
+              id: "ACTION_PLAY_NOAH_EXCHANGE",
+              type: "play_dialogue",
+              targetId: "DIALOGUE_NOAH_DONT_NEED_TO_KNOW",
+              detail: "Begin the protected-disclosure conversation.",
+            },
+          ],
+          status: "needs_discussion",
+        },
+        {
+          id: "BEAT_ENTER_VENUE",
+          title: "Enter the venue",
+          triggerType: "interaction",
+          triggerTarget: "INTERACT_VENUE_ENTRANCE",
+          optional: false,
+          actions: [
+            {
+              id: "ACTION_INTRODUCE_HOST",
+              type: "spawn_npc",
+              targetId: "ACTOR_VENUE_HOST",
+              detail: "The host welcomes Grayson and directs him backstage.",
+            },
+            {
+              id: "ACTION_UNLOCK_READING",
+              type: "unlock_exit",
+              targetId: "CH01_S04_BOOK_READING",
+              detail: "Advance after the host introduction completes.",
+            },
+          ],
+          status: "unreviewed",
         },
       ],
     },

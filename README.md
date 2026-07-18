@@ -11,6 +11,8 @@ The web-based **Scenework** editor provides:
 - exact source-passage editing and dialogue selection;
 - scene-level approval states and author notes;
 - consequence-bearing player dialogue choices;
+- a playable-staging workspace for ordered beats, NPC entrances and behavior,
+  items and interactables, plus diegetic HUD/Lens events;
 - an explicit choice between scrolling HD-2D and static cinematic staging;
 - an adaptation ledger for reviewing every change from source;
 - browser-local autosave plus YAML and JSON downloads.
