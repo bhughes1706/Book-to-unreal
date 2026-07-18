@@ -36,6 +36,7 @@ import {
   useState,
 } from "react";
 
+import { IdField } from "@/components/id-field";
 import { StagingEditor } from "@/components/staging-editor";
 import { chapterSeed } from "@/lib/chapter-seed";
 import type {
@@ -243,6 +244,24 @@ export function SceneEditor() {
         dialogue.id === dialogueId ? updater(dialogue) : dialogue,
       ),
     });
+  };
+
+  const renameDialogueId = (dialogueId: string, nextId: string) => {
+    updateScene({
+      dialogue: activeScene.dialogue.map((dialogue) =>
+        dialogue.id === dialogueId ? { ...dialogue, id: nextId } : dialogue,
+      ),
+      beats: activeScene.beats.map((beat) => ({
+        ...beat,
+        triggerTarget:
+          beat.triggerTarget === dialogueId ? nextId : beat.triggerTarget,
+        actions: beat.actions.map((action) => ({
+          ...action,
+          targetId: action.targetId === dialogueId ? nextId : action.targetId,
+        })),
+      })),
+    });
+    setNotice(`Dialogue ID renamed to ${nextId}; beat references were updated.`);
   };
 
   const updateChange = (
@@ -515,6 +534,22 @@ export function SceneEditor() {
       ...activeScene.items,
       ...activeScene.hudEvents,
     ].every((item) => item.status !== "unreviewed");
+  const activeSceneResourceIds = useMemo(
+    () => [
+      ...activeScene.dialogue.map((item) => item.id),
+      ...activeScene.npcs.map((item) => item.id),
+      ...activeScene.items.map((item) => item.id),
+      ...activeScene.hudEvents.map((item) => item.id),
+      ...activeScene.beats.map((item) => item.id),
+    ],
+    [
+      activeScene.beats,
+      activeScene.dialogue,
+      activeScene.hudEvents,
+      activeScene.items,
+      activeScene.npcs,
+    ],
+  );
 
   return (
     <main className="app-shell">
@@ -842,6 +877,18 @@ export function SceneEditor() {
                         </button>
                       </div>
                       <div className="dialogue-fields">
+                        <IdField
+                          className="dialogue-id-field"
+                          label="Dialogue ID"
+                          ariaLabel={`Dialogue ${dialogueIndex + 1} ID`}
+                          value={dialogue.id}
+                          reservedIds={activeSceneResourceIds.filter(
+                            (id) => id !== dialogue.id,
+                          )}
+                          onCommit={(nextId) =>
+                            renameDialogueId(dialogue.id, nextId)
+                          }
+                        />
                         <label>
                           <span>Speaker</span>
                           <input

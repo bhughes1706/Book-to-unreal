@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { IdField } from "@/components/id-field";
 import type {
   BeatAction,
   BeatActionType,
@@ -202,6 +203,24 @@ export function StagingEditor({
         item.id === itemId ? { ...item, ...updates } : item,
       ),
     });
+  };
+
+  const renameItemId = (itemId: string, nextId: string) => {
+    onChange({
+      items: scene.items.map((item) =>
+        item.id === itemId ? { ...item, id: nextId } : item,
+      ),
+      beats: scene.beats.map((beat) => ({
+        ...beat,
+        triggerTarget:
+          beat.triggerTarget === itemId ? nextId : beat.triggerTarget,
+        actions: beat.actions.map((action) => ({
+          ...action,
+          targetId: action.targetId === itemId ? nextId : action.targetId,
+        })),
+      })),
+    });
+    onNotice(`Item ID renamed to ${nextId}; beat references were updated.`);
   };
 
   const updateHudEvent = (eventId: string, updates: Partial<HudEvent>) => {
@@ -396,6 +415,13 @@ export function StagingEditor({
     (panel === "npcs" && scene.npcs.length === 0) ||
     (panel === "items" && scene.items.length === 0) ||
     (panel === "hud" && scene.hudEvents.length === 0);
+  const sceneResourceIds = [
+    ...scene.dialogue.map((item) => item.id),
+    ...scene.npcs.map((item) => item.id),
+    ...scene.items.map((item) => item.id),
+    ...scene.hudEvents.map((item) => item.id),
+    ...scene.beats.map((item) => item.id),
+  ];
 
   return (
     <section className="editor-section staging-section">
@@ -451,6 +477,21 @@ export function StagingEditor({
           </option>
         ))}
       </datalist>
+
+      {panel === "items" && scene.items.length > 0 && (
+        <div className="resource-panel-toolbar">
+          <div>
+            <strong>Scene items</strong>
+            <small>
+              Create props and interactables, then target their IDs from beats.
+            </small>
+          </div>
+          <button className="button button-primary" onClick={addItem}>
+            <Plus size={15} />
+            Create item
+          </button>
+        </div>
+      )}
 
       {panel === "beats" && scene.beats.length > 0 && (
         <div className="beat-timeline">
@@ -839,6 +880,14 @@ export function StagingEditor({
                 </button>
               </div>
               <div className="stage-fields resource-fields item-fields">
+                <IdField
+                  className="stage-field stage-field-wide"
+                  label="Item ID"
+                  ariaLabel={`Item ${itemIndex + 1} ID`}
+                  value={item.id}
+                  reservedIds={sceneResourceIds.filter((id) => id !== item.id)}
+                  onCommit={(nextId) => renameItemId(item.id, nextId)}
+                />
                 <label className="stage-field">
                   <span>Type</span>
                   <select

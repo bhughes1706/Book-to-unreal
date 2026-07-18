@@ -795,7 +795,7 @@ select:focus-visible {
 .dialogue-fields {
   display: grid;
   gap: 12px;
-  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-columns: minmax(190px, 0.8fr) 150px minmax(0, 1.6fr);
   padding: 16px;
 }
 
@@ -843,6 +843,28 @@ select:focus-visible {
 .dialogue-fields textarea {
   min-height: 70px;
   resize: vertical;
+}
+
+.id-field small {
+  color: #8b948f;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: normal;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.id-field input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.id-field input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgb(180 67 56 / 10%);
+}
+
+.id-field .id-field-error {
+  color: var(--danger);
 }
 
 .choice-add {
@@ -1142,6 +1164,33 @@ select:focus-visible {
 
 .staging-empty {
   margin-top: 4px;
+}
+
+.resource-panel-toolbar {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 11px 12px 11px 14px;
+}
+
+.resource-panel-toolbar strong,
+.resource-panel-toolbar small {
+  display: block;
+}
+
+.resource-panel-toolbar strong {
+  font-size: 11px;
+}
+
+.resource-panel-toolbar small {
+  color: var(--muted);
+  font-size: 9px;
+  margin-top: 3px;
 }
 
 .beat-timeline,
