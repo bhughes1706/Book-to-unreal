@@ -33,17 +33,36 @@ geometry are compiled only after a scene is approved.
 ## Run the local scene editor
 
 Scenework is a local-only web app. It binds to your computer at
-`http://127.0.0.1:3000` and does not require a cloud account or hosted backend.
+`http://127.0.0.1:3001` and does not require a cloud account or hosted backend.
 
 ```bash
 pnpm install
 pnpm local
 ```
 
-Open `http://127.0.0.1:3000`.
+Open `http://127.0.0.1:3001`.
 
 Edits autosave in that browser's local storage. Export YAML or JSON regularly
 if you want portable backups or need to move work between browsers.
+
+## Create a chapter first pass with AI
+
+The project skill `$draft-chapter-scenes` reads a complete chapter, proposes
+scenes and beats, explains every boundary, and reports anything it would
+condense or omit. It does not create editor files until you approve the reported
+plan.
+
+Start with a prompt such as:
+
+```text
+Use $draft-chapter-scenes to analyze CH02 from this attached chapter.
+Report the scene and beat plan for my approval.
+```
+
+Request changes directly in the chat, or approve the current plan. After
+approval, the skill writes validated scene files to `imports/<CHAPTER_ID>/`.
+Use **Import scenes** in Scenework to load them, then make cleanup changes in the
+UI.
 
 For a local production-mode build:
 

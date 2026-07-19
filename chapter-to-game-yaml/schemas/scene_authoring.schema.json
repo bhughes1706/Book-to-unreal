@@ -201,12 +201,18 @@
     "staging": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["npcs", "items", "hud_events", "beats"],
+      "required": ["npcs", "interactables", "items", "hud_events", "beats"],
       "properties": {
         "npcs": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/npc"
+          }
+        },
+        "interactables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interactable"
           }
         },
         "items": {
@@ -302,9 +308,10 @@
         },
         "kind": {
           "enum": [
-            "environmental_interactable",
-            "scene_prop",
-            "narrative_item"
+            "personal_item",
+            "key_item",
+            "consumable",
+            "document"
           ]
         },
         "initial_state": {
@@ -312,6 +319,40 @@
         },
         "persistence": {
           "enum": ["scene", "chapter"]
+        },
+        "interaction_prompt": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval": {
+          "$ref": "#/$defs/approval"
+        }
+      }
+    },
+    "interactable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "interaction_prompt",
+        "outcome",
+        "approval"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": ["inspection", "prop", "transition", "traversal"]
         },
         "interaction_prompt": {
           "type": "string"
@@ -424,6 +465,7 @@
           "enum": [
             "begin_play",
             "interaction",
+            "item_used",
             "dialogue_complete",
             "player_enters",
             "timer",
@@ -452,6 +494,7 @@
             "move_npc",
             "give_item",
             "update_item",
+            "update_interactable",
             "play_dialogue",
             "play_audio",
             "camera",

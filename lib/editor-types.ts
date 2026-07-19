@@ -78,9 +78,10 @@ export interface SceneNpc {
 }
 
 export type SceneItemKind =
-  | "environmental_interactable"
-  | "scene_prop"
-  | "narrative_item";
+  | "personal_item"
+  | "key_item"
+  | "consumable"
+  | "document";
 
 export type SceneItemState = "visible" | "hidden" | "held";
 export type SceneItemPersistence = "scene" | "chapter";
@@ -91,6 +92,21 @@ export interface SceneItem {
   kind: SceneItemKind;
   initialState: SceneItemState;
   persistence: SceneItemPersistence;
+  interactionPrompt: string;
+  outcome: string;
+  status: ReviewStatus;
+}
+
+export type SceneInteractableKind =
+  | "inspection"
+  | "prop"
+  | "transition"
+  | "traversal";
+
+export interface SceneInteractable {
+  id: string;
+  name: string;
+  kind: SceneInteractableKind;
   interactionPrompt: string;
   outcome: string;
   status: ReviewStatus;
@@ -125,6 +141,7 @@ export interface HudEvent {
 export type BeatTriggerType =
   | "begin_play"
   | "interaction"
+  | "item_used"
   | "dialogue_complete"
   | "player_enters"
   | "timer"
@@ -137,6 +154,7 @@ export type BeatActionType =
   | "move_npc"
   | "give_item"
   | "update_item"
+  | "update_interactable"
   | "play_dialogue"
   | "play_audio"
   | "camera"
@@ -174,6 +192,7 @@ export interface SceneDraft {
   storyChanges: StoryChange[];
   npcs: SceneNpc[];
   items: SceneItem[];
+  interactables: SceneInteractable[];
   hudEvents: HudEvent[];
   beats: SceneBeat[];
   notes: string;

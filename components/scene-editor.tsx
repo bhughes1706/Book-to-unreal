@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  AlertTriangle,
+  ArrowRight,
   ArrowUpRight,
   BookOpenText,
+  BookPlus,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -16,7 +19,6 @@ import {
   Menu,
   MessageSquareQuote,
   MonitorPlay,
-  MoreHorizontal,
   MoveHorizontal,
   PanelLeftClose,
   PanelTop,
@@ -26,6 +28,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import {
@@ -38,7 +41,15 @@ import {
 
 import { IdField } from "@/components/id-field";
 import { StagingEditor } from "@/components/staging-editor";
+import type { StagingSelection } from "@/components/staging-editor";
+import type { ImportedScene } from "@/lib/authoring-import";
+import { parseAuthoringScene } from "@/lib/authoring-import";
 import { chapterSeed } from "@/lib/chapter-seed";
+import {
+  actionLabels,
+  hudChannelLabels,
+  triggerLabels,
+} from "@/lib/staging-model";
 import type {
   ChapterDraft,
   ChoiceOption,
@@ -47,12 +58,27 @@ import type {
   PresentationMode,
   ReviewStatus,
   SceneDraft,
+  SceneInteractable,
+  SceneInteractableKind,
+  SceneItem,
+  SceneItemKind,
   SceneStatus,
   StoryChange,
 } from "@/lib/editor-types";
 import { sceneToJson, sceneToYaml } from "@/lib/scene-export";
 
-const STORAGE_KEY = "scenework.chapter.CH01.v1";
+const WORKSPACE_KEY = "scenework.workspace.v1";
+const LEGACY_KEY = "scenework.chapter.CH01.v1";
+const SEED_DATA_VERSION = 3;
+
+interface CheckIssue {
+  key: string;
+  location: string;
+  message: string;
+  tab: WorkspaceTab;
+  staging?: StagingSelection;
+  anchorId?: string;
+}
 
 const sceneStatusLabel: Record<SceneStatus, string> = {
   draft: "Draft",
@@ -96,22 +122,233 @@ function makeId(prefix: string, value: string) {
   return `${prefix}_${slug || Date.now()}`;
 }
 
-function migrateChapter(saved: ChapterDraft): ChapterDraft {
+function migrateChapter(
+  saved: ChapterDraft,
+  enrichSeedDetails = false,
+): ChapterDraft {
   return {
     ...saved,
     scenes: saved.scenes.map((scene) => {
       const seededScene = chapterSeed.scenes.find(
         (candidate) => candidate.id === scene.id,
       );
-      return {
+      type LegacySceneItem = Omit<SceneItem, "kind"> & { kind: string };
+      const legacyItems = (scene.items ??
+        seededScene?.items ??
+        []) as LegacySceneItem[];
+      const becomesInteractable = (item: LegacySceneItem) =>
+        item.kind === "environmental_interactable" ||
+        item.kind === "scene_prop" ||
+        [
+          "ITEM_REAL_WHISKEY_BOTTLE",
+          "ITEM_SHARED_WHISKEY_BOTTLE",
+          "ITEM_SHARED_CIGARETTE",
+        ].includes(item.id);
+      const inferInteractableKind = (
+        item: LegacySceneItem,
+      ): SceneInteractableKind => {
+        const id = item.id.toUpperCase();
+        if (
+          item.kind === "scene_prop" ||
+          [
+            "WHISKEY",
+            "CIGARETTE",
+            "COCKTAIL",
+            "MICROPHONE",
+            "STOOL",
+            "WATER",
+            "COOKIE",
+          ].some((token) => id.includes(token))
+        ) {
+          return "prop";
+        }
+        if (
+          id.includes("ENTRANCE") ||
+          id.includes("EXIT") ||
+          id.includes("PLATFORM") ||
+          id.includes("FENCE")
+        ) {
+          return "transition";
+        }
+        if (id.includes("STAIR")) return "traversal";
+        return "inspection";
+      };
+      const migratedLegacyInteractables: SceneInteractable[] = legacyItems
+        .filter(becomesInteractable)
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          kind: inferInteractableKind(item),
+          interactionPrompt: item.interactionPrompt,
+          outcome: item.outcome,
+          status: item.status,
+        }));
+      const migratedItems: SceneItem[] = legacyItems
+        .filter((item) => !becomesInteractable(item))
+        .map((item) => ({
+          ...item,
+          kind: (
+            ["personal_item", "key_item", "consumable", "document"].includes(
+              item.kind,
+            )
+              ? item.kind
+              : item.id.includes("FORTUNE")
+                ? "document"
+                : "personal_item"
+          ) as SceneItemKind,
+        }));
+      const savedInteractables =
+        (
+          scene as SceneDraft & {
+            interactables?: SceneInteractable[];
+          }
+        ).interactables ?? [];
+      const interactables = [
+        ...savedInteractables,
+        ...migratedLegacyInteractables.filter(
+          (candidate) =>
+            !savedInteractables.some((item) => item.id === candidate.id),
+        ),
+      ];
+      const interactableIds = new Set(
+        interactables.map((interactable) => interactable.id),
+      );
+      const itemIds = new Set(migratedItems.map((item) => item.id));
+      const migrated = {
         ...scene,
         npcs: scene.npcs ?? seededScene?.npcs ?? [],
-        items: scene.items ?? seededScene?.items ?? [],
+        items: migratedItems,
+        interactables,
         hudEvents: scene.hudEvents ?? seededScene?.hudEvents ?? [],
-        beats: scene.beats ?? seededScene?.beats ?? [],
+        beats: (scene.beats ?? seededScene?.beats ?? []).map((beat) => ({
+          ...beat,
+          triggerType:
+            beat.triggerType === "interaction" &&
+            itemIds.has(beat.triggerTarget)
+              ? ("item_used" as const)
+              : beat.triggerType,
+          actions: beat.actions.map((action) =>
+            action.type === "update_item" &&
+            interactableIds.has(action.targetId)
+              ? { ...action, type: "update_interactable" as const }
+              : action,
+          ),
+        })),
+      };
+      const isNewlyDetailedChapterOneScene =
+        seededScene &&
+        seededScene.order >= 4 &&
+        seededScene.order <= 9 &&
+        seededScene.id.startsWith("CH01_");
+      if (!enrichSeedDetails || !isNewlyDetailedChapterOneScene) {
+        return migrated;
+      }
+      return {
+        ...migrated,
+        timeContext: migrated.timeContext || seededScene.timeContext,
+        status:
+          migrated.status === "draft" ? seededScene.status : migrated.status,
+        playerGoal: migrated.playerGoal || seededScene.playerGoal,
+        sourceExcerpt: migrated.sourceExcerpt || seededScene.sourceExcerpt,
+        dialogue:
+          migrated.dialogue.length > 0
+            ? migrated.dialogue
+            : seededScene.dialogue,
+        storyChanges:
+          migrated.storyChanges.length > 0
+            ? migrated.storyChanges
+            : seededScene.storyChanges,
+        npcs: migrated.npcs.length > 0 ? migrated.npcs : seededScene.npcs,
+        items: migrated.items.length > 0 ? migrated.items : seededScene.items,
+        interactables:
+          migrated.interactables.length > 0
+            ? migrated.interactables
+            : seededScene.interactables,
+        hudEvents:
+          migrated.hudEvents.length > 0
+            ? migrated.hudEvents
+            : seededScene.hudEvents,
+        beats: migrated.beats.length > 0 ? migrated.beats : seededScene.beats,
+        notes: migrated.notes || seededScene.notes,
       };
     }),
   };
+}
+
+function blankScene(id: string, order: number): SceneDraft {
+  return {
+    id,
+    order,
+    title: "New scene",
+    timeContext: "",
+    status: "draft",
+    presentationMode: "scrolling_hd2d",
+    playerGoal: "",
+    sourceExcerpt: "",
+    dialogue: [],
+    storyChanges: [],
+    npcs: [],
+    items: [],
+    interactables: [],
+    hudEvents: [],
+    beats: [],
+    notes: "",
+  };
+}
+
+function chapterTitleFromId(chapterId: string) {
+  const number = Number.parseInt(chapterId.replace(/\D+/g, ""), 10);
+  return Number.isFinite(number) && number > 0
+    ? `Chapter ${number}`
+    : chapterId;
+}
+
+function mergeImports(chapters: ChapterDraft[], imported: ImportedScene[]) {
+  const next = chapters.map((chapter) => ({
+    ...chapter,
+    scenes: [...chapter.scenes],
+  }));
+  const createdChapterIds = new Set<string>();
+  let added = 0;
+  let updated = 0;
+  imported.forEach(({ chapterId, scene }) => {
+    let chapter = next.find((candidate) => candidate.id === chapterId);
+    if (!chapter) {
+      chapter = {
+        id: chapterId,
+        title: chapterTitleFromId(chapterId),
+        sourceFilename: "",
+        scenes: [],
+      };
+      next.push(chapter);
+      createdChapterIds.add(chapterId);
+    }
+    const index = chapter.scenes.findIndex(
+      (candidate) => candidate.id === scene.id,
+    );
+    if (index === -1) {
+      chapter.scenes.push(scene);
+      added += 1;
+    } else {
+      chapter.scenes[index] = scene;
+      updated += 1;
+    }
+  });
+  next.forEach((chapter) => {
+    if (createdChapterIds.has(chapter.id)) {
+      chapter.scenes.sort((a, b) => a.id.localeCompare(b.id));
+    }
+    chapter.scenes = chapter.scenes.map((scene, index) => ({
+      ...scene,
+      order: index + 1,
+    }));
+  });
+  return { chapters: next, added, updated };
+}
+
+function truncate(value: string, length: number) {
+  const trimmed = value.trim();
+  return trimmed.length > length ? `${trimmed.slice(0, length)}…` : trimmed;
 }
 
 function downloadText(filename: string, content: string, type: string) {
@@ -161,7 +398,8 @@ function ReviewPill({
 }
 
 export function SceneEditor() {
-  const [chapter, setChapter] = useState<ChapterDraft>(chapterSeed);
+  const [chapters, setChapters] = useState<ChapterDraft[]>([chapterSeed]);
+  const [activeChapterId, setActiveChapterId] = useState(chapterSeed.id);
   const [activeSceneId, setActiveSceneId] = useState(
     "CH01_S03_WALK_TO_VENUE",
   );
@@ -171,28 +409,74 @@ export function SceneEditor() {
   const [hydrated, setHydrated] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [issues, setIssues] = useState<CheckIssue[] | null>(null);
+  const [stagingFocus, setStagingFocus] = useState<{
+    selection: StagingSelection;
+    token: number;
+  } | null>(null);
   const [notice, setNotice] = useState(
     "Your edits stay in this browser until you export them.",
   );
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setChapter(migrateChapter(JSON.parse(saved) as ChapterDraft));
-        setNotice("Recovered your local edit and updated its staging data.");
-      } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+    try {
+      const savedWorkspace = window.localStorage.getItem(WORKSPACE_KEY);
+      if (savedWorkspace) {
+        const parsed = JSON.parse(savedWorkspace) as {
+          chapters?: ChapterDraft[];
+          activeChapterId?: string;
+          dataVersion?: number;
+        };
+        if (Array.isArray(parsed.chapters) && parsed.chapters.length > 0) {
+          const enrichSeedDetails =
+            (parsed.dataVersion ?? 1) < SEED_DATA_VERSION;
+          const restored = parsed.chapters.map((chapter) =>
+            migrateChapter(chapter, enrichSeedDetails),
+          );
+          setChapters(restored);
+          const restoredActive =
+            restored.find((chapter) => chapter.id === parsed.activeChapterId) ??
+            restored[0];
+          setActiveChapterId(restoredActive.id);
+          setNotice("Recovered your local chapters.");
+          setHydrated(true);
+          return;
+        }
       }
+      const legacy = window.localStorage.getItem(LEGACY_KEY);
+      if (legacy) {
+        setChapters([
+          migrateChapter(JSON.parse(legacy) as ChapterDraft, true),
+        ]);
+        setNotice("Recovered your local edit and updated its staging data.");
+      }
+    } catch {
+      window.localStorage.removeItem(WORKSPACE_KEY);
     }
     setHydrated(true);
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(chapter));
-  }, [chapter, hydrated]);
+    window.localStorage.setItem(
+      WORKSPACE_KEY,
+      JSON.stringify({
+        dataVersion: SEED_DATA_VERSION,
+        chapters,
+        activeChapterId,
+      }),
+    );
+  }, [chapters, activeChapterId, hydrated]);
+
+  const chapter = useMemo(
+    () =>
+      chapters.find((candidate) => candidate.id === activeChapterId) ??
+      chapters[0],
+    [chapters, activeChapterId],
+  );
+  const chapterIndex = chapters.indexOf(chapter);
 
   const activeScene = useMemo(
     () =>
@@ -214,25 +498,207 @@ export function SceneEditor() {
   const approvedCount = chapter.scenes.filter(
     (scene) => scene.status === "approved" || scene.status === "locked",
   ).length;
-  const progress = Math.round((approvedCount / chapter.scenes.length) * 100);
+  const progress = Math.round(
+    (approvedCount / Math.max(chapter.scenes.length, 1)) * 100,
+  );
 
   const updateScene = useCallback(
     (updates: Partial<SceneDraft>) => {
-      setChapter((current) => ({
-        ...current,
-        scenes: current.scenes.map((scene) =>
-          scene.id === activeSceneId ? { ...scene, ...updates } : scene,
+      setChapters((current) =>
+        current.map((candidate) =>
+          candidate.id !== activeChapterId
+            ? candidate
+            : {
+                ...candidate,
+                scenes: candidate.scenes.map((scene) =>
+                  scene.id === activeSceneId
+                    ? { ...scene, ...updates }
+                    : scene,
+                ),
+              },
         ),
-      }));
+      );
     },
-    [activeSceneId],
+    [activeChapterId, activeSceneId],
   );
 
   const openScene = (sceneId: string) => {
     setActiveSceneId(sceneId);
     setTab("source");
     setNavOpen(false);
+    setIssues(null);
     setNotice("Scene loaded. Changes save locally as you work.");
+  };
+
+  const openChapter = (chapterId: string) => {
+    const target = chapters.find((candidate) => candidate.id === chapterId);
+    if (!target || chapterId === activeChapterId) return;
+    setActiveChapterId(chapterId);
+    setActiveSceneId(target.scenes[0]?.id ?? "");
+    setTab("source");
+    setIssues(null);
+    setNotice(`Switched to ${target.title}.`);
+  };
+
+  const addScene = () => {
+    const index = chapter.scenes.length + 1;
+    const existing = new Set(chapter.scenes.map((scene) => scene.id));
+    let id = `${chapter.id}_S${String(index).padStart(2, "0")}_NEW`;
+    let suffix = 1;
+    while (existing.has(id)) {
+      suffix += 1;
+      id = `${chapter.id}_S${String(index).padStart(2, "0")}_NEW_${suffix}`;
+    }
+    setChapters((current) =>
+      current.map((candidate) =>
+        candidate.id === chapter.id
+          ? { ...candidate, scenes: [...candidate.scenes, blankScene(id, index)] }
+          : candidate,
+      ),
+    );
+    setActiveSceneId(id);
+    setTab("source");
+    setIssues(null);
+    setNotice("Scene added. Paste its source passage to begin.");
+  };
+
+  const addChapter = () => {
+    const existingIds = new Set(chapters.map((candidate) => candidate.id));
+    let number = chapters.length + 1;
+    let id = `CH${String(number).padStart(2, "0")}`;
+    while (existingIds.has(id)) {
+      number += 1;
+      id = `CH${String(number).padStart(2, "0")}`;
+    }
+    const sceneId = `${id}_S01_NEW`;
+    setChapters((current) => [
+      ...current,
+      {
+        id,
+        title: `Chapter ${number}`,
+        sourceFilename: "",
+        scenes: [blankScene(sceneId, 1)],
+      },
+    ]);
+    setActiveChapterId(id);
+    setActiveSceneId(sceneId);
+    setTab("source");
+    setIssues(null);
+    setNotice(
+      `${id} created with a first scene. Paste its source passage, or import scene files instead.`,
+    );
+  };
+
+  const deleteChapter = () => {
+    const confirmed = window.confirm(
+      `Delete ${chapter.title} (${chapter.id}) and its ${chapter.scenes.length} scene${
+        chapter.scenes.length === 1 ? "" : "s"
+      } from this browser? Export or import files are the only way to bring the content back.`,
+    );
+    if (!confirmed) return;
+    const remaining = chapters.filter(
+      (candidate) => candidate.id !== chapter.id,
+    );
+    const emptied = remaining.length === 0;
+    if (emptied) {
+      remaining.push({
+        id: "CH01",
+        title: "Chapter 1",
+        sourceFilename: "",
+        scenes: [blankScene("CH01_S01_NEW", 1)],
+      });
+    }
+    setChapters(remaining);
+    setActiveChapterId(remaining[0].id);
+    setActiveSceneId(remaining[0].scenes[0]?.id ?? "");
+    setTab("source");
+    setIssues(null);
+    setNotice(
+      emptied
+        ? "Chapter deleted. A blank chapter is ready — import scene files or paste new source."
+        : "Chapter deleted.",
+    );
+  };
+
+  const deleteScene = () => {
+    if (chapter.scenes.length <= 1) {
+      setNotice(
+        "A chapter needs at least one scene — delete the chapter instead.",
+      );
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete scene “${activeScene.title}” (${activeScene.id})? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    const remaining = chapter.scenes
+      .filter((scene) => scene.id !== activeScene.id)
+      .map((scene, index) => ({ ...scene, order: index + 1 }));
+    setChapters((current) =>
+      current.map((candidate) =>
+        candidate.id === chapter.id
+          ? { ...candidate, scenes: remaining }
+          : candidate,
+      ),
+    );
+    setActiveSceneId(remaining[0].id);
+    setTab("source");
+    setIssues(null);
+    setNotice("Scene deleted.");
+  };
+
+  const importScenes = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const imported: ImportedScene[] = [];
+    const failures: string[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        imported.push(parseAuthoringScene(await file.text()));
+      } catch (error) {
+        failures.push(
+          `${file.name} (${error instanceof Error ? error.message : "unreadable"})`,
+        );
+      }
+    }
+    if (imported.length === 0) {
+      setNotice(`Import failed — ${failures.join("; ")}.`);
+      return;
+    }
+    const merged = mergeImports(chapters, imported);
+    setChapters(merged.chapters);
+    setActiveChapterId(imported[0].chapterId);
+    setActiveSceneId(imported[0].scene.id);
+    setTab("source");
+    setIssues(null);
+    const summary = [
+      merged.added > 0 ? `${merged.added} new` : "",
+      merged.updated > 0 ? `${merged.updated} updated` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
+    setNotice(
+      `Imported ${imported.length} scene${imported.length === 1 ? "" : "s"} (${summary}).${
+        failures.length > 0 ? ` Skipped ${failures.join("; ")}.` : ""
+      }`,
+    );
+  };
+
+  const jumpToIssue = (issue: CheckIssue) => {
+    setTab(issue.tab);
+    if (issue.staging) {
+      const selection = issue.staging;
+      setStagingFocus((current) => ({
+        selection,
+        token: (current?.token ?? 0) + 1,
+      }));
+    }
+    if (issue.anchorId) {
+      window.setTimeout(() => {
+        document
+          .getElementById(`entity-${issue.anchorId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 80);
+    }
   };
 
   const updateDialogue = (
@@ -419,71 +885,227 @@ export function SceneEditor() {
   };
 
   const runChecks = () => {
-    const issues: string[] = [];
-    if (!activeScene.sourceExcerpt.trim()) issues.push("source passage");
-    if (!activeScene.playerGoal.trim()) issues.push("player goal");
-    activeScene.dialogue.forEach((dialogue) => {
-      if (!dialogue.speaker.trim()) issues.push(`${dialogue.id} speaker`);
+    const found: CheckIssue[] = [];
+    const push = (issue: Omit<CheckIssue, "key">) =>
+      found.push({ key: String(found.length), ...issue });
+
+    if (!activeScene.sourceExcerpt.trim()) {
+      push({
+        location: "Source",
+        message:
+          "The source passage is empty — paste the passage this scene adapts.",
+        tab: "source",
+      });
+    }
+    if (!activeScene.playerGoal.trim()) {
+      push({
+        location: "Scene settings",
+        message:
+          "No player goal yet — describe what the player is trying to do (right-hand panel).",
+        tab: "source",
+      });
+    }
+
+    activeScene.dialogue.forEach((dialogue, dialogueIndex) => {
+      const line =
+        truncate(dialogue.text, 36) || `Dialogue ${dialogueIndex + 1}`;
+      if (!dialogue.speaker.trim()) {
+        push({
+          location: "Dialogue",
+          message: `“${line}” has no speaker.`,
+          tab: "dialogue",
+          anchorId: dialogue.id,
+        });
+      }
       if (dialogue.playerChoice) {
         if (dialogue.playerChoice.options.length < 2) {
-          issues.push(`${dialogue.playerChoice.id} needs two options`);
+          push({
+            location: "Dialogue",
+            message: `The choice “${truncate(dialogue.playerChoice.prompt, 40)}” needs at least two options.`,
+            tab: "dialogue",
+            anchorId: dialogue.id,
+          });
         }
         dialogue.playerChoice.options.forEach((option) => {
           if (!option.effect.trim() || option.effectScopes.length === 0) {
-            issues.push(`${option.id} consequence`);
+            push({
+              location: "Dialogue",
+              message: `Option “${truncate(option.label, 32)}” needs a written consequence and at least one effect scope.`,
+              tab: "dialogue",
+              anchorId: dialogue.id,
+            });
           }
         });
       }
     });
-    if (activeScene.beats.length === 0) issues.push("at least one scene beat");
+
+    if (activeScene.beats.length === 0) {
+      push({
+        location: "Staging",
+        message:
+          "No beats yet — add at least one beat so the scene is playable.",
+        tab: "staging",
+      });
+    }
     const beatIds = new Set(activeScene.beats.map((beat) => beat.id));
     const npcIds = new Set(activeScene.npcs.map((npc) => npc.id));
     const itemIds = new Set(activeScene.items.map((item) => item.id));
+    const interactableIds = new Set(
+      activeScene.interactables.map((interactable) => interactable.id),
+    );
     const hudIds = new Set(activeScene.hudEvents.map((event) => event.id));
     const dialogueIds = new Set(
       activeScene.dialogue.map((dialogue) => dialogue.id),
     );
+
     activeScene.npcs.forEach((npc) => {
+      const name = npc.displayName.trim() || npc.id;
+      const focus: StagingSelection = { kind: "npc", id: npc.id };
       if (!npc.displayName.trim() || !npc.role.trim()) {
-        issues.push(`${npc.id} identity`);
+        push({
+          location: "Staging · NPCs",
+          message: `${name} needs a display name and a story role.`,
+          tab: "staging",
+          staging: focus,
+        });
       }
       if (npc.presence === "enters_on_beat" && !npc.entranceBeatId) {
-        issues.push(`${npc.id} entrance beat`);
+        push({
+          location: "Staging · NPCs",
+          message: `${name} is set to enter mid-scene, but no entrance beat is chosen.`,
+          tab: "staging",
+          staging: focus,
+        });
       }
       if (
         (npc.entranceBeatId && !beatIds.has(npc.entranceBeatId)) ||
         (npc.exitBeatId && !beatIds.has(npc.exitBeatId))
       ) {
-        issues.push(`${npc.id} beat reference`);
+        push({
+          location: "Staging · NPCs",
+          message: `${name} points at an entrance or exit beat that no longer exists.`,
+          tab: "staging",
+          staging: focus,
+        });
       }
     });
+
     activeScene.items.forEach((item) => {
       if (!item.name.trim() || !item.outcome.trim()) {
-        issues.push(`${item.id} interaction outcome`);
+        push({
+          location: "Staging · Items",
+          message: `${item.name.trim() || item.id} needs a name and an interaction outcome.`,
+          tab: "staging",
+          staging: { kind: "item", id: item.id },
+        });
       }
     });
+
+    activeScene.interactables.forEach((interactable) => {
+      if (!interactable.name.trim() || !interactable.outcome.trim()) {
+        push({
+          location: "Staging · Interactables",
+          message: `${interactable.name.trim() || interactable.id} needs a name and an interaction outcome.`,
+          tab: "staging",
+          staging: { kind: "interactable", id: interactable.id },
+        });
+      }
+    });
+
     activeScene.hudEvents.forEach((event) => {
+      const name = `The ${hudChannelLabels[event.channel].toLowerCase()} HUD event`;
+      const focus: StagingSelection = { kind: "hud", id: event.id };
       if (!event.text.trim() || !event.trigger.trim()) {
-        issues.push(`${event.id} content`);
+        push({
+          location: "Staging · HUD",
+          message: `${name} needs on-screen text and an author-facing trigger.`,
+          tab: "staging",
+          staging: focus,
+        });
       }
       if (event.dismissMode === "timed" && event.durationSeconds <= 0) {
-        issues.push(`${event.id} duration`);
+        push({
+          location: "Staging · HUD",
+          message: `${name} is timed but has no duration in seconds.`,
+          tab: "staging",
+          staging: focus,
+        });
       }
     });
-    activeScene.beats.forEach((beat) => {
-      if (!beat.title.trim()) issues.push(`${beat.id} title`);
+
+    activeScene.beats.forEach((beat, beatIndex) => {
+      const name = `Beat ${beatIndex + 1} “${truncate(beat.title, 30) || beat.id}”`;
+      const focus: StagingSelection = { kind: "beat", id: beat.id };
+      if (!beat.title.trim()) {
+        push({
+          location: "Staging · Beats",
+          message: `Beat ${beatIndex + 1} has no title.`,
+          tab: "staging",
+          staging: focus,
+        });
+      }
       if (beat.triggerType !== "begin_play" && !beat.triggerTarget.trim()) {
-        issues.push(`${beat.id} trigger`);
+        push({
+          location: "Staging · Beats",
+          message: `${name} triggers on “${triggerLabels[beat.triggerType].toLowerCase()}” but has no target — pick what it reacts to.`,
+          tab: "staging",
+          staging: focus,
+        });
       }
       if (
         beat.triggerType === "beat_completed" &&
+        beat.triggerTarget.trim() &&
         !beatIds.has(beat.triggerTarget)
       ) {
-        issues.push(`${beat.id} trigger reference`);
+        push({
+          location: "Staging · Beats",
+          message: `${name} waits for a beat that doesn't exist anymore.`,
+          tab: "staging",
+          staging: focus,
+        });
       }
-      if (beat.actions.length === 0) issues.push(`${beat.id} action`);
-      beat.actions.forEach((action) => {
-        if (!action.detail.trim()) issues.push(`${action.id} direction`);
+      if (
+        beat.triggerType === "interaction" &&
+        beat.triggerTarget.trim() &&
+        !interactableIds.has(beat.triggerTarget)
+      ) {
+        push({
+          location: "Staging · Beats",
+          message: `${name} waits for an interactable that doesn't exist anymore.`,
+          tab: "staging",
+          staging: focus,
+        });
+      }
+      if (
+        beat.triggerType === "item_used" &&
+        beat.triggerTarget.trim() &&
+        !itemIds.has(beat.triggerTarget)
+      ) {
+        push({
+          location: "Staging · Beats",
+          message: `${name} waits for an inventory item that doesn't exist anymore.`,
+          tab: "staging",
+          staging: focus,
+        });
+      }
+      if (beat.actions.length === 0) {
+        push({
+          location: "Staging · Beats",
+          message: `${name} has no actions — add what happens.`,
+          tab: "staging",
+          staging: focus,
+        });
+      }
+      beat.actions.forEach((action, actionIndex) => {
+        const actionName = `${name}, action ${actionIndex + 1} (${actionLabels[action.type]})`;
+        if (!action.detail.trim()) {
+          push({
+            location: "Staging · Beats",
+            message: `${actionName} has no direction text.`,
+            tab: "staging",
+            staging: focus,
+          });
+        }
         const targetExists =
           action.type === "show_hud"
             ? hudIds.has(action.targetId)
@@ -491,18 +1113,29 @@ export function SceneEditor() {
               ? npcIds.has(action.targetId)
               : action.type === "give_item" || action.type === "update_item"
                 ? itemIds.has(action.targetId)
-                : action.type === "play_dialogue"
-                  ? dialogueIds.has(action.targetId)
-                  : true;
-        if (!targetExists) issues.push(`${action.id} target`);
+                : action.type === "update_interactable"
+                  ? interactableIds.has(action.targetId)
+                  : action.type === "play_dialogue"
+                    ? dialogueIds.has(action.targetId)
+                    : true;
+        if (!targetExists) {
+          push({
+            location: "Staging · Beats",
+            message: action.targetId
+              ? `${actionName} targets “${action.targetId}”, which doesn't exist in this scene.`
+              : `${actionName} needs a target.`,
+            tab: "staging",
+            staging: focus,
+          });
+        }
       });
     });
-    if (issues.length) {
-      setNotice(`Needs attention: ${issues.join(", ")}.`);
-      return;
-    }
+
+    setIssues(found);
     setNotice(
-      `Scene checks passed: ${activeScene.beats.length} beat${activeScene.beats.length === 1 ? "" : "s"}, ${activeScene.npcs.length} NPC${activeScene.npcs.length === 1 ? "" : "s"}, ${activeScene.items.length} item${activeScene.items.length === 1 ? "" : "s"}, and ${activeScene.hudEvents.length} HUD event${activeScene.hudEvents.length === 1 ? "" : "s"}.`,
+      found.length > 0
+        ? `${found.length} issue${found.length === 1 ? "" : "s"} found — click one below to jump straight to it.`
+        : `Scene checks passed: ${activeScene.beats.length} beat${activeScene.beats.length === 1 ? "" : "s"}, ${activeScene.npcs.length} NPC${activeScene.npcs.length === 1 ? "" : "s"}, ${activeScene.interactables.length} interactable${activeScene.interactables.length === 1 ? "" : "s"}, ${activeScene.items.length} inventory item${activeScene.items.length === 1 ? "" : "s"}, and ${activeScene.hudEvents.length} HUD event${activeScene.hudEvents.length === 1 ? "" : "s"}.`,
     );
   };
 
@@ -531,6 +1164,7 @@ export function SceneEditor() {
     [
       ...activeScene.beats,
       ...activeScene.npcs,
+      ...activeScene.interactables,
       ...activeScene.items,
       ...activeScene.hudEvents,
     ].every((item) => item.status !== "unreviewed");
@@ -538,6 +1172,7 @@ export function SceneEditor() {
     () => [
       ...activeScene.dialogue.map((item) => item.id),
       ...activeScene.npcs.map((item) => item.id),
+      ...activeScene.interactables.map((item) => item.id),
       ...activeScene.items.map((item) => item.id),
       ...activeScene.hudEvents.map((item) => item.id),
       ...activeScene.beats.map((item) => item.id),
@@ -546,6 +1181,7 @@ export function SceneEditor() {
       activeScene.beats,
       activeScene.dialogue,
       activeScene.hudEvents,
+      activeScene.interactables,
       activeScene.items,
       activeScene.npcs,
     ],
@@ -571,7 +1207,9 @@ export function SceneEditor() {
           </div>
         </div>
         <div className="topbar-center">
-          <span className="crumb-muted">Chapter 01</span>
+          <span className="crumb-muted">
+            Chapter {String(chapterIndex + 1).padStart(2, "0")}
+          </span>
           <span className="crumb-divider">/</span>
           <span>{activeScene.title}</span>
           <span className={`scene-state state-${activeScene.status}`}>
@@ -612,14 +1250,51 @@ export function SceneEditor() {
           </button>
         </div>
         <section className="chapter-summary">
-          <div className="eyebrow">Current chapter</div>
+          <div className="chapter-switch-row">
+            <div className="eyebrow">Current chapter</div>
+            {chapters.length > 1 && (
+              <label className="chapter-switcher">
+                <select
+                  aria-label="Switch chapter"
+                  value={chapter.id}
+                  onChange={(event) => openChapter(event.target.value)}
+                >
+                  {chapters.map((candidate, index) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {String(index + 1).padStart(2, "0")} · {candidate.title}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={13} />
+              </label>
+            )}
+          </div>
           <div className="chapter-title-row">
             <div>
-              <div className="chapter-number">01</div>
-              <h1>{chapter.title}</h1>
+              <div className="chapter-number">
+                {String(chapterIndex + 1).padStart(2, "0")}
+              </div>
+              <input
+                className="chapter-title-edit"
+                aria-label="Chapter title"
+                value={chapter.title}
+                onChange={(event) =>
+                  setChapters((current) =>
+                    current.map((candidate) =>
+                      candidate.id === chapter.id
+                        ? { ...candidate, title: event.target.value }
+                        : candidate,
+                    ),
+                  )
+                }
+              />
             </div>
-            <button className="icon-button" aria-label="Chapter actions">
-              <MoreHorizontal size={18} />
+            <button
+              className="icon-button danger-hover"
+              aria-label="Delete chapter"
+              onClick={deleteChapter}
+            >
+              <Trash2 size={16} />
             </button>
           </div>
           <div className="chapter-meta">
@@ -667,22 +1342,41 @@ export function SceneEditor() {
         </nav>
 
         <div className="rail-footer">
-          <button
-            className="button button-full button-quiet"
-            onClick={() =>
-              setNotice("New scene creation will be part of the chapter workflow.")
-            }
-          >
+          <button className="button button-full button-quiet" onClick={addScene}>
             <Plus size={16} />
             Add scene
           </button>
+          <div className="rail-footer-row">
+            <button className="button button-quiet" onClick={addChapter}>
+              <BookPlus size={15} />
+              New chapter
+            </button>
+            <button
+              className="button button-quiet"
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Upload size={15} />
+              Import scenes
+            </button>
+          </div>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".yaml,.yml,.json"
+            multiple
+            hidden
+            onChange={(event) => {
+              void importScenes(event.target.files);
+              event.target.value = "";
+            }}
+          />
           <div className="source-file">
             <FileText size={15} />
             <span>
               <small>Source</small>
-              {chapter.sourceFilename}
+              {chapter.sourceFilename || "No source file yet"}
             </span>
-            <Check size={14} />
+            {chapter.sourceFilename ? <Check size={14} /> : null}
           </div>
         </div>
       </aside>
@@ -709,9 +1403,18 @@ export function SceneEditor() {
               onChange={(event) => updateScene({ title: event.target.value })}
             />
           </div>
-          <div className="save-state">
-            <Save size={14} />
-            Saved locally
+          <div className="workspace-heading-tools">
+            <div className="save-state">
+              <Save size={14} />
+              Saved locally
+            </div>
+            <button
+              className="icon-button danger-hover"
+              aria-label="Delete scene"
+              onClick={deleteScene}
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
         </div>
 
@@ -753,6 +1456,56 @@ export function SceneEditor() {
           <Sparkles size={14} />
           <span>{notice}</span>
         </div>
+
+        {issues && (
+          <div
+            className={`issues-panel ${issues.length === 0 ? "is-clear" : ""}`}
+            role="region"
+            aria-label="Scene check results"
+          >
+            <div className="issues-head">
+              <span className="issues-title">
+                {issues.length === 0 ? (
+                  <>
+                    <CheckCircle2 size={15} />
+                    All checks pass — this scene is staged and reviewable.
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={15} />
+                    {issues.length} thing{issues.length === 1 ? "" : "s"} to
+                    resolve
+                  </>
+                )}
+              </span>
+              <span className="issues-tools">
+                <button className="text-button" onClick={runChecks}>
+                  Re-run
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label="Dismiss check results"
+                  onClick={() => setIssues(null)}
+                >
+                  <X size={14} />
+                </button>
+              </span>
+            </div>
+            {issues.length > 0 && (
+              <ul className="issues-list">
+                {issues.map((issue) => (
+                  <li key={issue.key}>
+                    <button onClick={() => jumpToIssue(issue)}>
+                      <span className="issue-location">{issue.location}</span>
+                      <span className="issue-message">{issue.message}</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="workspace-scroll">
           {tab === "source" && (
@@ -839,7 +1592,11 @@ export function SceneEditor() {
               ) : (
                 <div className="dialogue-stack">
                   {activeScene.dialogue.map((dialogue, dialogueIndex) => (
-                    <article className="dialogue-card" key={dialogue.id}>
+                    <article
+                      className="dialogue-card"
+                      id={`entity-${dialogue.id}`}
+                      key={dialogue.id}
+                    >
                       <div className="dialogue-card-head">
                         <span className="dialogue-index">
                           D{String(dialogueIndex + 1).padStart(2, "0")}
@@ -1103,6 +1860,7 @@ export function SceneEditor() {
               scene={activeScene}
               onChange={updateScene}
               onNotice={setNotice}
+              focusRequest={stagingFocus}
             />
           )}
 

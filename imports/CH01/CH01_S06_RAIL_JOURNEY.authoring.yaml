@@ -1,0 +1,164 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S06_RAIL_JOURNEY
+title: Converted Temples
+status: needs_author_review
+presentation:
+  mode: scrolling_hd2d
+player_goal: Absorb visual worldbuilding without stopping the chapter.
+source:
+  excerpt: >-
+    We wait until all the patrons of the venue are gone, finally stepping onto the Rail a
+    half-hour after the venue closed. We sit down on worn seats, the stitching mimicking real
+    leather.
+
+    	The rail speeds past huge residential housing that used to be shopping malls. After the water began rising and the internet took over supplying everyone’s needs, there was a renewed focus on recycling all the empty stores. Climate refugees received vast amounts of crypto-credits from the Leaders for their losses and looked to buy real estate. Old shopping malls were quickly converted and sold off, some malls supplied thousands of units to small and single households. The old temples of over consumption ended up supplying climate refugees with living spaces, the poetic justice was evident and acceptable to everyone, while the rich lined their pockets off the climate migration.
+
+    	The Rail slows in front of our skyscraper hotel.
+
+    	“Drink at the bar?” I ask Noah as we step out.
+
+    	“I’m going to try that new morphine I ordered and simply relax on the balcony.”
+
+    	“Your a man of refined recreational pleasure.”
+
+    	“Was that sarcasm?” He ask with a smile.
+
+    	“And I’m the hopeless one.”
+
+    	“I quit.” His expression is stern. 
+
+    	“Good.”
+
+    	“See you tomorrow.”
+
+    	“I’ll find you on the balcony.”
+dialogue:
+  - id: DIALOGUE_GRAYSON_DRINK_AT_BAR
+    speaker: Grayson
+    text: Drink at the bar?
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_NOAH_BALCONY_MORPHINE
+    speaker: Noah
+    text: >-
+      I’m going to try that new morphine I ordered and simply relax on the
+      balcony.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_REFINED_PLEASURE
+    speaker: Grayson
+    text: Your a man of refined recreational pleasure.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_NOAH_SEE_TOMORROW
+    speaker: Noah
+    text: See you tomorrow.
+    source_locked: true
+    approval: unreviewed
+story_changes: []
+staging:
+  npcs:
+    - id: ACTOR_NOAH
+      display_name: Noah
+      role: Travel companion who separates from Grayson at the hotel
+      presence: present_at_start
+      behavior: idle
+      exit_beat_id: BEAT_HOTEL_ARRIVAL
+      staging_notes: >-
+        Sit opposite or beside Grayson during transit, then peel toward the
+        elevators at the hotel.
+      approval: unreviewed
+  interactables:
+    - id: INTERACT_RAIL_WINDOW
+      name: Rail window
+      kind: inspection
+      interaction_prompt: Watch the city
+      outcome: >-
+        Reveal converted shopping-mall housing in readable parallax layers.
+      approval: unreviewed
+    - id: INTERACT_WORN_RAIL_SEAT
+      name: Worn synthetic-leather seat
+      kind: inspection
+      interaction_prompt: Inspect stitching
+      outcome: >-
+        Establish the carriage’s imitated material and worn public
+        infrastructure.
+      approval: unreviewed
+    - id: INTERACT_HOTEL_EXIT
+      name: Hotel station exit
+      kind: transition
+      interaction_prompt: Step out
+      outcome: End the transit sequence at the skyscraper hotel.
+      approval: unreviewed
+  items: []
+  hud_events:
+    - id: HUD_CONVERTED_TEMPLES
+      channel: internal_observation
+      text: >-
+        The old temples of overconsumption became homes, while the rich
+        profited from the migration.
+      trigger: Grayson watches the converted mall district pass the window.
+      dismiss_mode: player_dismiss
+      duration_seconds: 0
+      approval: unreviewed
+  beats:
+    - id: BEAT_TRANSIT_BEGINS
+      title: Settle into the carriage
+      trigger:
+        type: begin_play
+      optional: false
+      actions:
+        - id: ACTION_START_RAIL_PARALLAX
+          type: camera
+          target_id: RAIL_CARRIAGE_PARALLAX
+          detail: >-
+            Hold the carriage in the foreground while the city begins moving
+            behind it.
+        - id: ACTION_START_RAIL_AUDIO
+          type: play_audio
+          target_id: AUDIO_RAIL_MOTOR
+          detail: Use track rhythm and motor tone as the scene’s pacing bed.
+      approval: unreviewed
+    - id: BEAT_MALL_HOUSING
+      title: Observe the converted malls
+      trigger:
+        type: interaction
+        target: INTERACT_RAIL_WINDOW
+      optional: false
+      actions:
+        - id: ACTION_REVEAL_MALL_HOUSING
+          type: camera
+          target_id: CONVERTED_MALL_BACKDROP
+          detail: >-
+            Expose store shells converted into dense housing before adding
+            text.
+        - id: ACTION_SHOW_CONVERTED_TEMPLES
+          type: show_hud
+          target_id: HUD_CONVERTED_TEMPLES
+          detail: Let the visual transformation carry most of the exposition.
+      approval: unreviewed
+    - id: BEAT_HOTEL_ARRIVAL
+      title: Arrive at the hotel
+      trigger:
+        type: interaction
+        target: INTERACT_HOTEL_EXIT
+      optional: false
+      actions:
+        - id: ACTION_PLAY_BAR_INVITATION
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_DRINK_AT_BAR
+          detail: Begin as the Rail doors open.
+        - id: ACTION_PLAY_NOAH_PLANS
+          type: play_dialogue
+          target_id: DIALOGUE_NOAH_BALCONY_MORPHINE
+          detail: Send Noah toward the elevators and Grayson toward the bar.
+        - id: ACTION_UNLOCK_HOTEL_BAR
+          type: unlock_exit
+          target_id: CH01_S07_HOTEL_BAR
+          detail: Transition once Noah and Grayson separate.
+      approval: unreviewed
+notes: >-
+  Keep this scene low-input. The exterior transformation should communicate
+  adaptation and exploitation before the observation text appears.

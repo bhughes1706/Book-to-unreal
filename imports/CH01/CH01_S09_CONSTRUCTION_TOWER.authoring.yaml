@@ -1,0 +1,243 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S09_CONSTRUCTION_TOWER
+title: Above the City
+status: needs_author_review
+presentation:
+  mode: static_cinematic
+player_goal: Reach a place where silence and isolation feel restorative rather than empty.
+source:
+  excerpt: >-
+    We return across the solar sidewalks and electric rails and she leads me to a construction
+    zone. After searching along the dark chain link she finds a stretch of cut fencing and I
+    follow. The building stood dark. Every floor looked like a perfect row of teeth leading up
+    to the heavens. Every floor razor sharp, every floor perfectly spaced.
+
+    	Concrete stairs continue ad infinitum. Every floor we rise above the buzzing electric of the city, its people, its burning bulbs which obfuscate the night that holds stars hidden above. Every floor is a closer to a peace I had forgotten existed. It’s a funny thing, to forget what silence feels like. To see only ill-defined shapes, everything slightly uncertain. To feel the nature that barely exist anymore. Nature’s become so rare that we had to climb a skyscraper to find it again. 
+
+    	I lost her in the thick fog that now surrounds us. “Where are you?” I ask the quiet black night, I ask the fog.
+
+    	“Here,” is the fog’s response.
+
+    	“Where?”
+
+    	“Everywhere,” the voice reverberates around me.
+
+    	I follow the voice until I’m standing over the city, that burning nondescript orange spreading for miles in the fog. Above is blackness; the ocean is heard but unseen below.
+
+    	“It’s beautiful.”
+
+    	“It is and it’s always been here, waiting for you.” The quiet black night says. I can’t see where that voice is and I feel vulnerable so high up.
+
+    	“It’s lonely here.”
+
+    	“And?” I feel her arm go around my waist. 
+
+    	“It feels nice. Sometimes I simply want to escape.”
+
+    	“Being alone feels nice?”
+
+    	“To feel singular, I’m not alone.”
+
+    	“I’m here.”
+
+    	“Everywhere.”
+
+    	“Exactly.” We lean against each other.
+dialogue:
+  - id: DIALOGUE_GRAYSON_WHERE_ARE_YOU
+    speaker: Grayson
+    text: Where are you?
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_WOMAN_HERE_EVERYWHERE
+    speaker: Unnamed woman
+    text: Here. Everywhere.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_BEAUTIFUL
+    speaker: Grayson
+    text: It’s beautiful.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_WOMAN_ALWAYS_HERE
+    speaker: Unnamed woman
+    text: It is and it’s always been here, waiting for you.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_SINGULAR
+    speaker: Grayson
+    text: To feel singular, I’m not alone.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_WOMAN_IM_HERE
+    speaker: Unnamed woman
+    text: I’m here.
+    source_locked: true
+    approval: unreviewed
+story_changes: []
+staging:
+  npcs:
+    - id: ACTOR_WHISKEY_WOMAN
+      display_name: Unnamed woman
+      role: Guide through the tower and Grayson’s temporary connection
+      presence: present_at_start
+      behavior: follow_path
+      staging_notes: >-
+        Lead confidently at first, disappear into fog for the audio-navigation
+        beat, then rejoin at the rooftop edge.
+      approval: unreviewed
+  interactables:
+    - id: INTERACT_CUT_FENCE
+      name: Cut chain-link fence
+      kind: transition
+      interaction_prompt: Slip through
+      outcome: Leave the managed city route and enter the unfinished tower.
+      approval: unreviewed
+    - id: INTERACT_CONCRETE_STAIRS
+      name: Concrete stairwell
+      kind: traversal
+      interaction_prompt: Climb
+      outcome: >-
+        Ascend through repeated floors as city noise and artificial light fall
+        away.
+      approval: unreviewed
+    - id: INTERACT_ROOFTOP_EDGE
+      name: Rooftop edge
+      kind: inspection
+      interaction_prompt: Look out
+      outcome: >-
+        Reveal the orange city glow below, black sky above, and unseen ocean.
+      approval: unreviewed
+  items: []
+  hud_events:
+    - id: HUD_CLIMB_ABOVE_CITY
+      channel: objective
+      text: Climb above the city noise.
+      trigger: Grayson enters the unfinished tower.
+      dismiss_mode: beat_advance
+      duration_seconds: 0
+      approval: unreviewed
+    - id: HUD_FORGOTTEN_SILENCE
+      channel: internal_observation
+      text: It’s a funny thing, to forget what silence feels like.
+      trigger: The city sound finally drops away during the ascent.
+      dismiss_mode: player_dismiss
+      duration_seconds: 0
+      approval: unreviewed
+  beats:
+    - id: BEAT_ENTER_CUT_FENCE
+      title: Enter through the cut fence
+      trigger:
+        type: interaction
+        target: INTERACT_CUT_FENCE
+      optional: false
+      actions:
+        - id: ACTION_SHOW_CLIMB_OBJECTIVE
+          type: show_hud
+          target_id: HUD_CLIMB_ABOVE_CITY
+          detail: >-
+            Keep the objective quiet and remove it once the ascent is underway.
+        - id: ACTION_MOVE_WOMAN_INSIDE
+          type: move_npc
+          target_id: ACTOR_WHISKEY_WOMAN
+          detail: Have her locate the breach and lead Grayson into darkness.
+      approval: unreviewed
+    - id: BEAT_ASCENT
+      title: Climb the unfinished floors
+      trigger:
+        type: interaction
+        target: INTERACT_CONCRETE_STAIRS
+      optional: false
+      actions:
+        - id: ACTION_REDUCE_CITY_AUDIO
+          type: play_audio
+          target_id: AUDIO_CITY_VERTICAL_FADE
+          detail: >-
+            Reduce electrical buzz and street density floor by floor; retain
+            wind and structure creaks.
+        - id: ACTION_REPEAT_TOWER_FLOORS
+          type: camera
+          target_id: VERTICAL_TOWER_ASCENT
+          detail: >-
+            Use tooth-like repeated floors without making the climb long or
+            mechanically tedious.
+      approval: unreviewed
+    - id: BEAT_LOST_IN_FOG
+      title: Follow her voice through fog
+      trigger:
+        type: player_enters
+        target: Upper fog level
+      optional: false
+      actions:
+        - id: ACTION_PLAY_WHERE_ARE_YOU
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_WHERE_ARE_YOU
+          detail: Let the question fall into a nearly black frame.
+        - id: ACTION_PLAY_HERE_EVERYWHERE
+          type: play_dialogue
+          target_id: DIALOGUE_WOMAN_HERE_EVERYWHERE
+          detail: >-
+            Place the two answers as spatial voice cues that guide rather than
+            mislead.
+        - id: ACTION_MOVE_WOMAN_THROUGH_FOG
+          type: move_npc
+          target_id: ACTOR_WHISKEY_WOMAN
+          detail: >-
+            Hide her sprite intermittently while keeping the route accessible.
+      approval: unreviewed
+    - id: BEAT_CITY_REVEAL
+      title: Stand above the city
+      trigger:
+        type: interaction
+        target: INTERACT_ROOFTOP_EDGE
+      optional: false
+      actions:
+        - id: ACTION_REVEAL_CITY_BELOW
+          type: camera
+          target_id: ROOFTOP_CITY_REVEAL
+          detail: >-
+            Open to diffuse orange light below, blackness above, and fog erasing
+            the horizon.
+        - id: ACTION_SHOW_FORGOTTEN_SILENCE
+          type: show_hud
+          target_id: HUD_FORGOTTEN_SILENCE
+          detail: >-
+            Let the observation appear only after the city sound has receded.
+        - id: ACTION_PLAY_BEAUTIFUL
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_BEAUTIFUL
+          detail: Keep the line small against the wide view.
+        - id: ACTION_PLAY_ALWAYS_HERE
+          type: play_dialogue
+          target_id: DIALOGUE_WOMAN_ALWAYS_HERE
+          detail: Answer from within the fog before she comes close.
+      approval: unreviewed
+    - id: BEAT_CHAPTER_END
+      title: Singular, not alone
+      trigger:
+        type: dialogue_complete
+        target: DIALOGUE_WOMAN_ALWAYS_HERE
+      optional: false
+      actions:
+        - id: ACTION_PLAY_SINGULAR
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_SINGULAR
+          detail: >-
+            Preserve Grayson’s distinction between solitude and abandonment.
+        - id: ACTION_PLAY_IM_HERE
+          type: play_dialogue
+          target_id: DIALOGUE_WOMAN_IM_HERE
+          detail: Bring her arm around him before the final hold.
+        - id: ACTION_SET_CHAPTER_COMPLETE
+          type: set_flag
+          target_id: FLAG_CH01_COMPLETE
+          detail: >-
+            Hold on both figures leaning together, then fade without adding a
+            new line.
+      approval: unreviewed
+notes: >-
+  Treat silence as the reward. Spatial voice cues must remain accessible, the
+  fog must not obscure navigation, and the final composition should hold
+  without extra music or exposition.

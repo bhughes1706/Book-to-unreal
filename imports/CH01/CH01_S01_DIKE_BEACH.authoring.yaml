@@ -1,0 +1,130 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S01_DIKE_BEACH
+title: Painted Waves
+status: approved
+presentation:
+  mode: scrolling_hd2d
+player_goal: Absorb the scene and discover that the visible waves are only paint.
+source:
+  excerpt: >-
+    The waves aren’t real. They were painted on the concrete dike from some distant memory. Real
+    waves move and crash and dance and shimmer, but these waves are stationary and
+    disintegrating. The paint chips off in places and underneath the waves prove to be hollow.
+    Every wave a millimeter thick. All I see are those painted waves, I could turn my head right
+    or left and know that the concrete dike will disappear in some distant point miles down the
+    beach.
+
+    	It’s seems a cruel irony that the painter listened to the waves slamming against the tall concrete dike feet from where they worked. How that must have mocked the painter, a reminder of how dynamic waves are, that nothing in nature is stationary and nothing lasting. Centuries from now this dike will crumble and the waves will wash away this concrete, the remnants of the paint.
+
+    	I hear the crashing waves. They crash no matter what happens in this city. From the ocean’s view it must seem like constant folly to crash and crash and crash against that concrete dike that protects the city. It must seem as though the dike holds in some secret that the ocean has forgotten.
+
+    	The sand is cool in the night and it sticks to my arms in the dew. I lay my head down in the sand and stare up at the night sky. I remember when I was a child I could see the stars. I looked up at the sky and pointed to a star while my father tried to work out which one it was, calling out Saturn or Jupiter and telling my mother to come look, we found a planet. He said that as if the planet belonged to us. Maybe it did. But the stars disappeared one after another with every new row of city lighting. We travelled to an observatory and through a large telescope I saw Andromeda, heading for its collision course with the Milky Way. These two large bodies millions of light years across will pass into one another, coalesce, and not one star will collide with another. I have difficulty fathoming such a thing.
+
+    	I stare up into the black night and relax my body. I imagine as though I’m falling into the black, that gravity reversed and I’m falling into those invisible stars until I can’t breathe anymore. If I could only fall away from earth forever, maybe I could end up on Mars and my father would be vindicated, the planet would finally belong to us. With my luck I’d impale myself on some arcane satellite antenna before I reached the red sands of the Martian surface.
+
+    	The moon shimmers behind me as I crane my neck back to look. It’s shape is some dark yellow blob, dispersed by the ‘yellow fog.’ Osaka, Japan is like every other city, it exist in the constant stifling miasma. 
+
+    	The Leaders have made attempts to curb the rising temperatures, the rising waters, the rising population. ‘The hills don’t flood’ is a common expression when buying real estate. The Leaders deployed hundreds of atmospheric carbon dioxide scrubbers a year ago to help clean the air, but canceled the idea when one fell out of the sky into an African zoo and killed a number of endangered animals. The accident killed people too, but no one said much about that. But there is a solar sidewalk in Amsterdam that lights up when you walk on it at night; the world is both fascinating and terrifying without much reprieve.
+
+    	Noah sits next to me with his arms around his legs and his chin on his knees. He stares ahead at the painted waves, listening to the ever-crashing on the other side of that concrete dike. Noah’s arms are like boulders, his skin tropical hardwood, his eyes are coal. He looks at me and his black eyes are like holes, it’s as if I can see all the way through him into the night beyond, that reality bent for just a second and I saw someone besides the friend I’ve known.
+
+    	“Want to walk up there?” He asks, pointing to the stairs that zigzag to the top of the dike. I nod. He hands me a cigarette and I light it.
+
+    	A boy walks in front of us. I can’t say where he came from, but he’s suddenly there. He walks beside the dike with one hand outstretched, dragging his fingers against the concrete. He walks slowly, looking at the sand, at the dike, his hand straight out and mimicking the painted waves the best he can. His hand going up and down, up and down over and over again until I’m certain his movements match the crashing oscillation of the waves. The child hums in his throat and the sound echoes off the dike. I watch him for some time while Noah stands in the sand. The child is alone in the night, waiting to be swallowed by that point of infinity further down the wall. 
+
+    	I look at Noah and he shrugs.
+dialogue:
+  - id: DIALOGUE_NOAH_WALK_UP
+    speaker: Noah
+    text: Want to walk up there?
+    source_locked: true
+    approval: approved
+story_changes:
+  - id: CHANGE_NOAH_ENTRY_ORDER
+    type: character_entry_order
+    canonical: Noah is present on the beach before the boy appears and climbs the dike with Grayson.
+    proposed: Grayson begins alone. Noah first appears when Grayson reaches the reading venue.
+    rationale: Preserve the opening isolation and make companionship a clear emotional shift.
+    approval: approved
+staging:
+  npcs:
+    - id: ACTOR_MYSTERIOUS_BOY
+      display_name: Unidentified boy
+      role: Unexplained visual omen
+      presence: enters_on_beat
+      behavior: follow_path
+      entrance_beat_id: BEAT_BOY_RUNS_ACROSS
+      exit_beat_id: BEAT_CONTINUE_ALONE
+      staging_notes: Run beside the wall with one hand tracing the painted waves; remain unexplained.
+      approval: approved
+  interactables:
+    - id: INTERACT_PAINTED_WAVES
+      name: Painted waves
+      kind: inspection
+      interaction_prompt: Inspect
+      outcome: Reveal that the visible waves are deteriorating paint.
+      approval: approved
+  items: []
+  hud_events:
+    - id: HUD_WAVES_NOT_REAL
+      channel: internal_observation
+      text: The waves aren't real.
+      trigger: Player inspects the painted waves.
+      dismiss_mode: player_dismiss
+      duration_seconds: 0
+      approval: approved
+  beats:
+    - id: BEAT_OPENING_STILLNESS
+      title: Opening stillness
+      trigger:
+        type: begin_play
+      optional: false
+      actions:
+        - id: ACTION_START_AMBIENCE
+          type: play_audio
+          target_id: AUDIO_UNSEEN_WAVES
+          detail: Hold on unseen waves and wind before enabling movement.
+      approval: approved
+    - id: BEAT_INSPECT_PAINTED_WAVES
+      title: Inspect the painted waves
+      trigger:
+        type: interaction
+        target: INTERACT_PAINTED_WAVES
+      optional: false
+      actions:
+        - id: ACTION_SHOW_WAVES_OBSERVATION
+          type: show_hud
+          target_id: HUD_WAVES_NOT_REAL
+          detail: Present as a quiet internal observation.
+      approval: approved
+    - id: BEAT_BOY_RUNS_ACROSS
+      title: Boy runs across
+      trigger:
+        type: beat_completed
+        target: BEAT_INSPECT_PAINTED_WAVES
+      optional: false
+      actions:
+        - id: ACTION_SPAWN_BOY
+          type: spawn_npc
+          target_id: ACTOR_MYSTERIOUS_BOY
+          detail: Spawn just outside the camera frame.
+        - id: ACTION_MOVE_BOY
+          type: move_npc
+          target_id: ACTOR_MYSTERIOUS_BOY
+          detail: Run along the wall and exit without explanation.
+      approval: approved
+    - id: BEAT_CONTINUE_ALONE
+      title: Continue alone
+      trigger:
+        type: event
+        target: EVENT_BOY_EXITED
+      optional: false
+      actions:
+        - id: ACTION_UNLOCK_DIKE_EXIT
+          type: unlock_exit
+          target_id: CH01_S02_DIKE_WALKWAY
+          detail: Let Grayson continue toward the dike walkway alone.
+      approval: approved
+notes: ""

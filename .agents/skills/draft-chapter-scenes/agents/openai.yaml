@@ -1,0 +1,4 @@
+interface:
+  display_name: "Draft Chapter Scenes"
+  short_description: "Turn full chapters into reviewable scene plans"
+  default_prompt: "Use $draft-chapter-scenes to read this entire chapter, propose scenes and beats with coverage and omission rationale, and wait for my approval before creating authoring files."

@@ -1,0 +1,178 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S03_WALK_TO_VENUE
+title: Toward the Reading
+status: needs_author_review
+presentation:
+  mode: scrolling_hd2d
+player_goal: Reach the venue despite Grayson’s reluctance.
+source:
+  excerpt: >-
+    Noah says its time to go, so we go. The stairs lead us back down to the side of the dike
+    where all the sounds collide with one another. We walk across the sand, the city blaring
+    bright in front of us. It doesn’t take long for the sound of the ocean to retreat. I light
+    another cigarette off the old.
+
+    	“Are you okay?” He asks while walking toward a brown building that appears asleep in the bustling city.
+
+    	“No. I don’t think I am.” I say, but don’t look at him.
+
+    	“It’ll be easier in time, this first time will the worst.”
+
+    	“Maybe you’re right.” 
+
+    	“You’ll see.”
+
+    	The smoke rises from my mouth toward that black space above me, I watch it swirl and disappear.
+
+    	“They don’t need to know.” Noah says. “Why you wrote it is none of their concern.”
+
+    	“That makes me feel like a fake, a liar.”
+
+    	“You’re not. They don’t need to know.”
+
+    	“Alright.” I say.
+
+    	We crossed the Rails after two Pods sped past us. Blinking signs alert pedestrians when it’s  safe to walk, but with the State paying for suicides and abortions, I don’t trust their signals to protect us. 
+
+    	“What if I tell them why I wrote it?” I say as we begin following the solar sidewalk on the other side of the Rails.
+
+    	“Then they won’t understand your book, they’ll put it in that box and it won’t be the same.” Noah says as he lights another cigarette, as if he’s the nervous one, chain-smoking his thoughts away. He lights another and hands it to me. 
+
+    	“Why would they put it in a box?”
+
+    	“A proverbial box.” He puts his hands out to mimic the shape of a box, the cigarette resting in his lips, all his words coming out slurred.
+
+    	“Like a box where Jesus kept all his proverbs?”
+
+    	“Yes. Just like that, Grayson. Jesus’ proverb box.” 
+
+    	“He probably made the box himself.” I nod to myself, as if I’ve figured out a great mystery. “Out of wood, of course.”
+
+    	“Jesus wasn’t a carpenter. He was a stone worker.”
+
+    	I stop walking and look at Noah. “Everyone is so misunderstood.”
+
+    	The building is unremarkable next to all the brightly lit skyscrapers. It’s a brown bland ancient structure with grey concrete running around every floor. A pitted and water stained gargoyle perches atop the entrance. Noah leads the way to the backdoor and I’m greeted by a teenager with a large grin and acne. He tells me he’s excited and happy he can welcome me. His hand is out and I reluctantly shake it. 
+
+    	His hand is now pointing and he says, “this way.”
+
+    	The curtain is dark, obfuscating everything on the other side, my imagination filling in every hazy line. I imagine all the faces staring at me, waiting for me. I imagine an empty room, my defeat displayed in every empty chair. I imagine a burning room, everyone running for the exits. I imagine my words offending everyone, each person clamoring for a refund.
+dialogue:
+  - id: DIALOGUE_NOAH_DONT_NEED_TO_KNOW
+    speaker: Noah
+    text: They don’t need to know. Why you wrote it is none of their concern.
+    source_locked: true
+    approval: approved
+  - id: DIALOGUE_GRAYSON_FAKE
+    speaker: Grayson
+    text: That makes me feel like a fake, a liar.
+    source_locked: true
+    approval: unreviewed
+    player_choice:
+      id: CHOICE_DISCLOSE_BOOK_REASON
+      prompt: How does Grayson answer Noah?
+      canonical_bounds: The reading still happens. The choice changes Grayson’s expressed intent and
+        relationship state, not the chapter’s event order.
+      approval: needs_discussion
+      options:
+        - id: OPTION_TELL_THE_TRUTH
+          label: I should tell them the truth.
+          effect: Grayson leans toward disclosure and challenges Noah’s protective instinct.
+          effect_scopes:
+            - self_definition
+            - relationship
+        - id: OPTION_KEEP_IT_PRIVATE
+          label: Maybe it is none of their concern.
+          effect: Grayson accepts the performance boundary while carrying the discomfort forward.
+          effect_scopes:
+            - self_definition
+            - scene_variation
+story_changes:
+  - id: CHANGE_NOAH_REJOINS_AT_VENUE
+    type: character_entry_order
+    canonical: Noah accompanies Grayson from the beach toward the venue.
+    proposed: Grayson travels alone; Noah joins him at the venue approach so this dialogue moves
+      closer to the reading.
+    rationale: Protect the approved solitary opening while retaining the conversation’s function.
+    approval: needs_discussion
+staging:
+  npcs:
+    - id: ACTOR_NOAH
+      display_name: Noah
+      role: Companion and protective confidant
+      presence: enters_on_beat
+      behavior: follow_player
+      entrance_beat_id: BEAT_NOAH_REJOINS
+      staging_notes: Join near the venue approach so the conversation lands immediately before the reading.
+      approval: needs_discussion
+    - id: ACTOR_VENUE_HOST
+      display_name: Venue host
+      role: Minor guide
+      presence: enters_on_beat
+      behavior: scripted
+      entrance_beat_id: BEAT_ENTER_VENUE
+      staging_notes: Welcome Grayson enthusiastically and direct him backstage.
+      approval: unreviewed
+  interactables:
+    - id: INTERACT_VENUE_ENTRANCE
+      name: Venue entrance
+      kind: transition
+      interaction_prompt: Enter
+      outcome: Complete the approach and move Grayson backstage.
+      approval: unreviewed
+  items: []
+  hud_events:
+    - id: HUD_REACH_READING
+      channel: objective
+      text: Reach the reading venue.
+      trigger: The walk toward the venue begins.
+      dismiss_mode: beat_advance
+      duration_seconds: 0
+      approval: unreviewed
+  beats:
+    - id: BEAT_WALK_BEGINS
+      title: Walk toward the venue
+      trigger:
+        type: begin_play
+      optional: false
+      actions:
+        - id: ACTION_SHOW_READING_OBJECTIVE
+          type: show_hud
+          target_id: HUD_REACH_READING
+          detail: Keep the objective understated and non-blocking.
+      approval: unreviewed
+    - id: BEAT_NOAH_REJOINS
+      title: Noah rejoins
+      trigger:
+        type: player_enters
+        target: Venue approach
+      optional: false
+      actions:
+        - id: ACTION_SPAWN_NOAH
+          type: spawn_npc
+          target_id: ACTOR_NOAH
+          detail: Bring Noah into frame from the venue side.
+        - id: ACTION_PLAY_NOAH_EXCHANGE
+          type: play_dialogue
+          target_id: DIALOGUE_NOAH_DONT_NEED_TO_KNOW
+          detail: Begin the protected-disclosure conversation.
+      approval: needs_discussion
+    - id: BEAT_ENTER_VENUE
+      title: Enter the venue
+      trigger:
+        type: interaction
+        target: INTERACT_VENUE_ENTRANCE
+      optional: false
+      actions:
+        - id: ACTION_INTRODUCE_HOST
+          type: spawn_npc
+          target_id: ACTOR_VENUE_HOST
+          detail: The host welcomes Grayson and directs him backstage.
+        - id: ACTION_UNLOCK_READING
+          type: unlock_exit
+          target_id: CH01_S04_BOOK_READING
+          detail: Advance after the host introduction completes.
+      approval: unreviewed
+notes: ""

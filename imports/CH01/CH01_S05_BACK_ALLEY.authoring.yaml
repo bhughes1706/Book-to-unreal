@@ -1,0 +1,219 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S05_BACK_ALLEY
+title: After the Applause
+status: needs_author_review
+presentation:
+  mode: static_cinematic
+player_goal: Move from performance to private banter.
+source:
+  excerpt: >-
+    Noah hands me a glass of water and I drink it eagerly. He smiles at me and I know he’s
+    pleased with the reading. There’s commotion as everyone stands and slowly exits the venue. 
+
+    	“How was it?” I ask. 
+
+    	“You were fantastic.” He says. I look at him, but I don’t know what to say. 
+
+    	The boy with acne is backstage and asks if there is anything I need and I restrain myself from telling him that I’d  only like to be left alone. 
+
+    	“Smoke in the back alley?” I say.
+
+    	We stand in the alley and the cigarette makes all the stress a little fuzzier. Noah brought cocaine with him on the reading tour, some marijuana, some random pills, some of whatever Noah brings on every trip. Cigarettes are good enough for me. Once they legalized everything, the thrill was simply gone. Give me illegal, give me degenerate, give me sinful, without it I’m just a law abiding white man and there’s nothing more boring than that.
+
+    	“Why Japan?” I ask him.
+
+    	“Are you just wondering that now?”
+
+    	“Yes, actually.” I say as I watch my fans leave the venue.
+
+    	“Because Japan is the most over populated former-country on earth.”
+
+    	“I don’t get it.”
+
+    	“Your book pokes fun at raising children.” Noah says.
+
+    	“I still don’t get it.” A line forms in front of the Rail station, while some walk home, making certain they receive their crypto-credits. I look down at my Bracelet, a tiny red light tells me GPS is tracking it, that all my movements are recorded. This was the price for universal basic income, and we paid it gladly.
+
+    	“There’s a stress in the population that your book will reach.” Noah informs me in his best scholarly impression.
+
+    	“Oh, okay.”
+
+    	“You still don’t get it.”
+
+    	“I already stopped caring.” Frustrating Noah is my favorite hobby.
+
+    	“Hopeless.” He says.
+
+    	“I hope for a lot of things. Like that you get laid at least once in your life.” I say to him.
+
+    	“You’re a baboon.”
+
+    	“Joke’s on you; they’re extinct.” I think for a moment. “Or, perhaps, the joke is on them.”
+dialogue:
+  - id: DIALOGUE_NOAH_FANTASTIC
+    speaker: Noah
+    text: You were fantastic.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_WHY_JAPAN
+    speaker: Grayson
+    text: Why Japan?
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_NOAH_POPULATION_STRESS
+    speaker: Noah
+    text: There’s a stress in the population that your book will reach.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_EXTINCT_BABOON
+    speaker: Grayson
+    text: Joke’s on you; they’re extinct. Or, perhaps, the joke is on them.
+    source_locked: true
+    approval: unreviewed
+story_changes: []
+staging:
+  npcs:
+    - id: ACTOR_NOAH
+      display_name: Noah
+      role: Supportive friend and comic foil
+      presence: present_at_start
+      behavior: follow_player
+      exit_beat_id: BEAT_BOARD_RAIL
+      staging_notes: >-
+        Move from backstage reassurance into relaxed alley banter, then
+        accompany Grayson to the Rail.
+      approval: unreviewed
+    - id: ACTOR_VENUE_ASSISTANT
+      display_name: Venue assistant
+      role: Backstage attendant
+      presence: present_at_start
+      behavior: stationary
+      exit_beat_id: BEAT_ALLEY_SMOKE
+      staging_notes: >-
+        Remain eager and slightly awkward; do not compete with the exchange
+        between Grayson and Noah.
+      approval: unreviewed
+    - id: ACTOR_DEPARTING_PATRONS
+      display_name: Departing patrons
+      role: Background crowd clearing the venue district
+      presence: present_at_start
+      behavior: follow_path
+      exit_beat_id: BEAT_BOARD_RAIL
+      staging_notes: >-
+        Thin out gradually so the Rail transition feels earned rather than
+        timer-driven.
+      approval: unreviewed
+  interactables:
+    - id: INTERACT_WATER_GLASS
+      name: Glass of water
+      kind: prop
+      interaction_prompt: Drink
+      outcome: Ground the post-performance exhaustion before Noah offers praise.
+      approval: unreviewed
+    - id: INTERACT_ALLEY_CIGARETTE
+      name: Alley cigarette
+      kind: prop
+      interaction_prompt: Light cigarette
+      outcome: Begin the private Japan and population conversation.
+      approval: unreviewed
+    - id: INTERACT_RAIL_PLATFORM
+      name: Rail platform
+      kind: transition
+      interaction_prompt: Board Rail
+      outcome: Leave the venue district after the patrons clear.
+      approval: unreviewed
+  items:
+    - id: ITEM_LIFE_BRACELET
+      name: Life Bracelet
+      kind: personal_item
+      initial_state: held
+      persistence: chapter
+      interaction_prompt: Check tracking light
+      outcome: >-
+        Reveal the red GPS indicator and the cost attached to universal basic
+        income.
+      approval: unreviewed
+  hud_events:
+    - id: HUD_BRACELET_TRACKING
+      channel: internal_observation
+      text: GPS is tracking it. All my movements are recorded.
+      trigger: Grayson checks the red light on his Bracelet.
+      dismiss_mode: player_dismiss
+      duration_seconds: 0
+      approval: unreviewed
+  beats:
+    - id: BEAT_POST_SHOW
+      title: Recover backstage
+      trigger:
+        type: begin_play
+      optional: false
+      actions:
+        - id: ACTION_DRINK_BACKSTAGE_WATER
+          type: update_interactable
+          target_id: INTERACT_WATER_GLASS
+          detail: Have Grayson drink eagerly while the venue empties behind him.
+        - id: ACTION_PLAY_NOAH_PRAISE
+          type: play_dialogue
+          target_id: DIALOGUE_NOAH_FANTASTIC
+          detail: >-
+            Let the compliment land into silence rather than a triumphant
+            response.
+      approval: unreviewed
+    - id: BEAT_ALLEY_SMOKE
+      title: Step into the alley
+      trigger:
+        type: interaction
+        target: INTERACT_ALLEY_CIGARETTE
+      optional: false
+      actions:
+        - id: ACTION_PLAY_WHY_JAPAN
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_WHY_JAPAN
+          detail: >-
+            Start the walk-and-talk once the cigarette softens the post-show
+            tension.
+        - id: ACTION_PLAY_POPULATION_CONTEXT
+          type: play_dialogue
+          target_id: DIALOGUE_NOAH_POPULATION_STRESS
+          detail: >-
+            Connect the satire to population pressure without stopping
+            traversal.
+      approval: unreviewed
+    - id: BEAT_CHECK_BRACELET
+      title: Notice the tracking light
+      trigger:
+        type: item_used
+        target: ITEM_LIFE_BRACELET
+      optional: true
+      actions:
+        - id: ACTION_SHOW_BRACELET_TRACKING
+          type: show_hud
+          target_id: HUD_BRACELET_TRACKING
+          detail: >-
+            Keep the observation brief while the Rail queue forms in the
+            background.
+      approval: unreviewed
+    - id: BEAT_BOARD_RAIL
+      title: Board the Rail
+      trigger:
+        type: interaction
+        target: INTERACT_RAIL_PLATFORM
+      optional: false
+      actions:
+        - id: ACTION_PLAY_EXTINCTION_JOKE
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_EXTINCT_BABOON
+          detail: End the alley exchange on the source’s extinction joke.
+        - id: ACTION_UNLOCK_RAIL_JOURNEY
+          type: unlock_exit
+          target_id: CH01_S06_RAIL_JOURNEY
+          detail: >-
+            Transition after the last patrons leave and Grayson and Noah sit
+            down.
+      approval: unreviewed
+notes: >-
+  Keep the drug references in dialogue and environmental context rather than
+  turning them into rewarded gameplay. Preserve the ordinary, quiet scale of
+  the alley.

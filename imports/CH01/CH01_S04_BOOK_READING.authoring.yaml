@@ -1,0 +1,251 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S04_BOOK_READING
+title: The Comedy Performance
+status: needs_author_review
+presentation:
+  mode: static_cinematic
+player_goal: Complete the reading while noticing the audience’s mediated attention.
+source:
+  excerpt: >-
+    I push past the curtain and the room is indeed full of patient faces. Some are talking to
+    one another in hushed tones, but most stare silently at the stage, looking at news on their
+    Lens or adding images to their social media pages. Most in the audience don’t notice when I
+    step onstage and for a brief second I think I could leave before they do. A couple in front
+    of the stage don’t move, they don’t blink, and I can’t stop myself from staring at them,
+    wondering what images are playing on their Lenses. I wonder if it’s more interesting than I
+    am. I’d probably take the under on that bet.
+
+    	I stand on a small stage. It’s a small venue and there’s a small mic next to the stool I’ll use when my feet begin to hurt. The lights are low and my white face is highlighted against a black curtain background. The venue’s crowd waits for me in utter silence as faces begin to look up. They wait for the words I’ll read off my Lens. They’re simply sounds I’ll make, just a random collection of noises and pauses all put together to mean something. Yet, the audience can’t know the tears that fell on my typewriter as I typed. The audience will never have the truth, only the remnants I choose to call satire. They’re receiving scraps of myself and I feel like a conman.
+
+    	“My name is Grayson Ochs and I write comedy.” I say into the mic. Several people clap. More and more people begin looking at the stage until everyone is welcoming me. For the next hour, I read passages from my book.
+
+    My mouth is dry and my eyes hurt. I finish the reading and I’m asking the audience if they
+    have any questions. The audience laughed at the parts they were supposed to laugh at, but I
+    couldn’t find the humor in any of this.
+
+    	“That was only a sneak peek at the book, but I hope you enjoyed the rigid scientific talk we undertook.” I say into the mic and some laughter drifts through the room. “Does anyone have any questions?” 
+
+    	A mid-20’s Japanese man with facial hair stands up and waves. I point at him. “Is there a reason you decided to write a parody book on parenting?” He speaks Japanese, but all I hear is the English translation in my ear. 
+
+    	“Who said it was parody? This is hard science.” Laughter again.
+
+    	A woman with tornado hair and stance all akimbo stands up and doesn’t wait for me to point. “I was especially intrigued by the section on how to structure a babies diet. Would it be beneficial to select dirt from a bunch of different locations to add more bacteria to your baby’s diet?” She’s smiling as she asks this, juxtaposing her body’s expression. She’s beautiful, her hair standing atop her head, as if she’s daring gravity to punish her fashion sense. 
+
+    	“Of course, the more bacteria the better.” I say into the mic. “You want the maximum diversity of bacteria, so however you can get there, whether that’s dirt from different locations or just getting creative with where you get these microbes. I’m thinking of making a food corporation with all the needed dirt and diseases in it. I’ll call it ‘Baby Strong Inc.’” 
+
+    	I point to a middle-aged Japanese man with a notepad in one hand. “How did you go about writing this book?”
+
+    	“I purchased a couple of parenting books and corrected all their mistakes.” There’s quite a few laughs at this. “More realistically, I just wrote a bunch of crazy shit down until it made a book.”
+
+    	I tell the crowd thank you and leave the stage to applause.
+dialogue:
+  - id: DIALOGUE_GRAYSON_COMEDY_INTRO
+    speaker: Grayson
+    text: My name is Grayson Ochs and I write comedy.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_AUDIENCE_PARODY_QUESTION
+    speaker: Audience member
+    text: Is there a reason you decided to write a parody book on parenting?
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_HARD_SCIENCE
+    speaker: Grayson
+    text: Who said it was parody? This is hard science.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_WHISKEY_WOMAN_BACTERIA
+    speaker: Unnamed woman
+    text: >-
+      Would it be beneficial to select dirt from a bunch of different locations
+      to add more bacteria to your baby’s diet?
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_BABY_STRONG
+    speaker: Grayson
+    text: >-
+      I’m thinking of making a food corporation with all the needed dirt and
+      diseases in it. I’ll call it ‘Baby Strong Inc.’
+    source_locked: true
+    approval: unreviewed
+story_changes:
+  - id: CHANGE_NOAH_FIRST_APPEARANCE
+    type: character_first_appearance
+    canonical: >-
+      Noah has accompanied Grayson since the beach and is waiting when the
+      reading ends.
+    proposed: >-
+      Noah’s first game appearance occurs at the reading venue, immediately
+      before or during the backstage transition.
+    rationale: >-
+      Preserve the author-approved solitary opening while placing Noah at the
+      point where his support becomes dramatically active.
+    approval: approved
+staging:
+  npcs:
+    - id: ACTOR_WHISKEY_WOMAN
+      display_name: Unnamed woman
+      role: Distinctive audience member who challenges Grayson
+      presence: present_at_start
+      behavior: idle
+      exit_beat_id: BEAT_APPLAUSE_TRANSITION
+      staging_notes: >-
+        Keep her tornado-like hair and asymmetrical stance readable in
+        silhouette; do not name her.
+      approval: unreviewed
+    - id: ACTOR_AUDIENCE_QUESTIONER
+      display_name: Audience questioner
+      role: Japanese attendee whose question establishes Lens translation
+      presence: present_at_start
+      behavior: stationary
+      exit_beat_id: BEAT_APPLAUSE_TRANSITION
+      staging_notes: >-
+        Rise from the audience after the reading montage and speak Japanese
+        while the translated line is heard.
+      approval: unreviewed
+    - id: ACTOR_NOAH
+      display_name: Noah
+      role: Grayson’s companion and first backstage support
+      presence: enters_on_beat
+      behavior: scripted
+      entrance_beat_id: BEAT_APPLAUSE_TRANSITION
+      staging_notes: >-
+        Appear at the backstage edge with water as applause carries through the
+        curtain.
+      approval: unreviewed
+  interactables:
+    - id: INTERACT_STAGE_MICROPHONE
+      name: Stage microphone
+      kind: prop
+      interaction_prompt: Begin the reading
+      outcome: Commit Grayson to the performance and start the reading montage.
+      approval: unreviewed
+    - id: INTERACT_AUDIENCE_LENSES
+      name: Audience Lens glow
+      kind: inspection
+      interaction_prompt: Observe
+      outcome: Notice moving Lens colors and the audience’s divided attention.
+      approval: unreviewed
+    - id: INTERACT_STAGE_STOOL
+      name: Stage stool
+      kind: prop
+      interaction_prompt: Sit
+      outcome: >-
+        Change Grayson’s delivery pose without changing the reading’s outcome.
+      approval: unreviewed
+  items: []
+  hud_events:
+    - id: HUD_STAGE_DOUBT
+      channel: internal_observation
+      text: They’re receiving scraps of myself and I feel like a conman.
+      trigger: Grayson observes the Lens-lit audience before speaking.
+      dismiss_mode: player_dismiss
+      duration_seconds: 0
+      approval: unreviewed
+    - id: HUD_QA_TRANSLATION
+      channel: translation
+      text: Is there a reason you decided to write a parody book on parenting?
+      trigger: The first audience question is spoken in Japanese.
+      dismiss_mode: beat_advance
+      duration_seconds: 0
+      approval: unreviewed
+  beats:
+    - id: BEAT_CURTAIN_ANXIETY
+      title: Curtain anxiety
+      trigger:
+        type: begin_play
+      optional: false
+      actions:
+        - id: ACTION_FRAME_CURTAIN_FANTASIES
+          type: camera
+          target_id: CURTAIN_ANXIETY_OVERLAYS
+          detail: >-
+            Flash empty, hostile, and burning-room possibilities without
+            presenting them as real events.
+        - id: ACTION_SHOW_STAGE_DOUBT
+          type: show_hud
+          target_id: HUD_STAGE_DOUBT
+          detail: Let the internal observation sit against the distracted audience.
+      approval: unreviewed
+    - id: BEAT_READING_START
+      title: Take the stage
+      trigger:
+        type: interaction
+        target: INTERACT_STAGE_MICROPHONE
+      optional: false
+      actions:
+        - id: ACTION_PLAY_COMEDY_INTRO
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_COMEDY_INTRO
+          detail: Deliver into a dry microphone before applause grows.
+        - id: ACTION_RUN_READING_MONTAGE
+          type: custom
+          target_id: READING_MONTAGE
+          detail: >-
+            Compress the hour-long reading while laughter becomes emotionally
+            detached.
+      approval: unreviewed
+    - id: BEAT_AUDIENCE_QUESTIONS
+      title: Open audience questions
+      trigger:
+        type: dialogue_complete
+        target: DIALOGUE_GRAYSON_COMEDY_INTRO
+      optional: false
+      actions:
+        - id: ACTION_PLAY_PARODY_QUESTION
+          type: play_dialogue
+          target_id: DIALOGUE_AUDIENCE_PARODY_QUESTION
+          detail: The attendee speaks Japanese from the dark audience.
+        - id: ACTION_SHOW_QA_TRANSLATION
+          type: show_hud
+          target_id: HUD_QA_TRANSLATION
+          detail: Present the Lens translation cleanly and without fanfare.
+        - id: ACTION_PLAY_HARD_SCIENCE
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_HARD_SCIENCE
+          detail: Land the source joke and allow the expected laugh.
+      approval: unreviewed
+    - id: BEAT_WOMAN_QUESTION
+      title: The unnamed woman stands
+      trigger:
+        type: dialogue_complete
+        target: DIALOGUE_GRAYSON_HARD_SCIENCE
+      optional: false
+      actions:
+        - id: ACTION_PLAY_BACTERIA_QUESTION
+          type: play_dialogue
+          target_id: DIALOGUE_WHISKEY_WOMAN_BACTERIA
+          detail: >-
+            Isolate her silhouette enough to support recognition in the hotel
+            bar.
+        - id: ACTION_PLAY_BABY_STRONG
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_BABY_STRONG
+          detail: >-
+            Keep Grayson’s public comic rhythm intact while his affect stays
+            distant.
+      approval: unreviewed
+    - id: BEAT_APPLAUSE_TRANSITION
+      title: Leave to applause
+      trigger:
+        type: dialogue_complete
+        target: DIALOGUE_GRAYSON_BABY_STRONG
+      optional: false
+      actions:
+        - id: ACTION_SPAWN_NOAH_BACKSTAGE
+          type: spawn_npc
+          target_id: ACTOR_NOAH
+          detail: Reveal Noah with a glass of water as Grayson clears the curtain.
+        - id: ACTION_UNLOCK_BACK_ALLEY
+          type: unlock_exit
+          target_id: CH01_S05_BACK_ALLEY
+          detail: >-
+            Carry applause into the quieter backstage space before loading the
+            alley scene.
+      approval: unreviewed
+notes: >-
+  Preserve the woman’s anonymity and the contrast between successful comedy
+  and Grayson’s private grief. The author-approved Noah entry change remains
+  locked in the adaptation ledger.

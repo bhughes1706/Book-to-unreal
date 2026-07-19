@@ -62,6 +62,14 @@ export function toAuthoringDocument(scene: SceneDraft) {
         staging_notes: npc.stagingNotes,
         approval: npc.status,
       })),
+      interactables: scene.interactables.map((interactable) => ({
+        id: interactable.id,
+        name: interactable.name,
+        kind: interactable.kind,
+        interaction_prompt: interactable.interactionPrompt,
+        outcome: interactable.outcome,
+        approval: interactable.status,
+      })),
       items: scene.items.map((item) => ({
         id: item.id,
         name: item.name,
@@ -124,6 +132,9 @@ export function toNormalizedDocument(scene: SceneDraft) {
       staging: {
         npcsApproved: scene.npcs.filter((item) => item.status === "approved")
           .length,
+        interactablesApproved: scene.interactables.filter(
+          (item) => item.status === "approved",
+        ).length,
         itemsApproved: scene.items.filter((item) => item.status === "approved")
           .length,
         hudEventsApproved: scene.hudEvents.filter(

@@ -1,0 +1,39 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S02_DIKE_WALKWAY
+title: The Black Ocean
+status: needs_author_review
+presentation:
+  mode: scrolling_hd2d
+player_goal: Cross the dike while processing a distant death that the city treats as routine.
+source:
+  excerpt: >-
+    We walk the stairs that lead to the narrow path on top of the dike. Most mornings you can
+    find people running up here in order to earn their basic income. ‘Exercise for the State’
+    posters litter the walkway. We see no one on the path this night. 
+
+    	The dike meanders down the beach, one half the buzzing white electric of the city, the other half the consuming dark nothingness of the ocean. I can’t make out the waves crashing below and the ocean feels forbidden. The ocean feels forgotten. The ocean feels guilty. The black of the night sky matches the black of the ocean below, and as I press against the dike’s railing to stare at the emptiness I feel disoriented. There’s no horizon anymore, only shades of black creating a barely noticeable gradient. 
+
+    	We pass a sign reading ‘Exercise for your wallet!’ We pass a sign reading ‘Register for suicide credits today!’ We pass a sign reading ‘Overpopulation have you stressed? Have an abortion today!’ Underneath the word ‘abortion’ is the green symbol for crypto-credits. I refuse to think about how many babies have been aborted for the fifty-thousand credit payout.
+
+    	I can’t remember when all of this began. Maybe I don’t want to.
+
+    	There’s a boardwalk jutting out into the ocean. It’s lit with solar lights, creating a yellow line that defiantly pierces the blackness surrounding it. A man stands at the end of that boardwalk, leaning against the railing with his back to the ocean. He doesn’t move. 
+
+    	Noah tells me we only have ten minutes before I need to be at the place I’d rather not go. We stand smoking, letting the mist from the ocean dampen our skin.
+
+    	I stare at that man. I stare at him until he disappears into the night. The boardwalk stands empty while the man plunges into the frigid waters. There’s no ladder on the ocean’s side of the dike, there’s no Coast Guard or safety teams ready to pull the man in. The ocean is permanent. He’ll die alone, falling to the bottom of the ocean with all the others. They call these people the divers. They dive to their deaths for the suicide credits. One-hundred-thousand crypto-credits deposited directly into a bank account of their choosing.
+
+    	The bank is being notified that the man’s Life Bracelet doesn’t register a pulse. After three days the credits will be released. You must register for suicide beforehand so they know you didn’t die in a natural way. Natural death doesn’t pay. If you register for suicide and don’t die within a month, the Bank fines you two months of income.
+
+    	The Bracelets keep all your vitals stored in a computer, including how much you walk and run during the day. If you don’t exercise enough during the week you stop receiving basic income.
+dialogue: []
+story_changes: []
+staging:
+  npcs: []
+  interactables: []
+  items: []
+  hud_events: []
+  beats: []
+notes: ""

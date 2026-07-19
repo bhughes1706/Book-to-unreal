@@ -1,0 +1,197 @@
+schema_version: 0.1.0
+kind: scene_authoring
+chapter_id: CH01
+scene_id: CH01_S08_NIGHT_WALK
+title: Fortunes
+status: needs_author_review
+presentation:
+  mode: scrolling_hd2d
+player_goal: Share a vice-driven interlude and receive an ambiguous promise.
+source:
+  excerpt: >-
+    She’s on the street waiting for me. “Where are we going?” I ask.
+
+    	“Somewhere we can talk. It’s a place I found.”
+
+    	“Can’t we talk anywhere?”
+
+    	“No. It doesn’t work that way.”
+
+    	“Alright.”
+
+    	We walk. She periodically takes a drink from the bottle and hands it to me. I light a cigarette and she snatches it from my mouth and places it on her lips. When she’d take a drink from the bottle she’d hand the cigarette back to me. We were just two people wondering in the night passing vices back and forth.
+
+    	“Here.” She stops in front of a small restaurant. “I love doing this.” She tells me to wait and walks inside the restaurant named ‘Dragon Noodle.’ On the street my vision seems somewhat blurry and I smile at every passing person, though no one notices me. It was quite the pleasant night and I feel happy for the first time in some time. I can’t remember exactly how long. 
+
+    	“Here.” She comes out of the restaurant and hands me a fortune cookie. 
+
+    	“I didn’t know they had fortune cookies in former-Japan.” 
+
+    	“Just say Japan. I hate the fact nothing’s what it is anymore.”
+
+    	“Alright.”
+
+    	“Well.” She looks at me with a smirk. “Open it.”
+
+    	“‘Within one month you’ll gain back something you lost.’” I hand the piece of paper to her. 
+
+    	“No, you keep that… so, what did you lose exactly?”
+
+    	“My mind.” I open my eyes wide and stare at her.
+
+    	“I should have guessed.”
+
+    	“What about you?”
+
+    	She breaks a fortune cookie, “it says ‘I’ve been in that damn cookie for far too long.’”
+
+    	“No it doesn’t. What’s it say?”
+
+    	“It’s personal.” She says with a stern expression, the humor gone from her eyes. She puts the piece of paper in her pocket and continues to walk.
+dialogue:
+  - id: DIALOGUE_WOMAN_SOMEWHERE_TO_TALK
+    speaker: Unnamed woman
+    text: Somewhere we can talk. It’s a place I found.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_WOMAN_JUST_SAY_JAPAN
+    speaker: Unnamed woman
+    text: Just say Japan. I hate the fact nothing’s what it is anymore.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_FORTUNE
+    speaker: Grayson
+    text: Within one month you’ll gain back something you lost.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_GRAYSON_LOST_MIND
+    speaker: Grayson
+    text: My mind.
+    source_locked: true
+    approval: unreviewed
+  - id: DIALOGUE_WOMAN_FORTUNE_PRIVATE
+    speaker: Unnamed woman
+    text: It’s personal.
+    source_locked: true
+    approval: unreviewed
+story_changes: []
+staging:
+  npcs:
+    - id: ACTOR_WHISKEY_WOMAN
+      display_name: Unnamed woman
+      role: Companion leading Grayson toward a private place
+      presence: present_at_start
+      behavior: follow_player
+      staging_notes: >-
+        Keep the walk playful and coordinated until her private fortune abruptly
+        closes her expression.
+      approval: unreviewed
+  interactables:
+    - id: INTERACT_SHARED_WHISKEY_BOTTLE
+      name: Shared whiskey bottle
+      kind: prop
+      interaction_prompt: Take a drink
+      outcome: >-
+        Continue the reciprocal bottle-and-cigarette rhythm during the walk.
+      approval: unreviewed
+    - id: INTERACT_SHARED_CIGARETTE
+      name: Shared cigarette
+      kind: prop
+      interaction_prompt: Pass cigarette
+      outcome: >-
+        Express temporary intimacy through a paired handoff animation.
+      approval: unreviewed
+    - id: INTERACT_FORTUNE_COOKIE
+      name: Fortune cookie
+      kind: prop
+      interaction_prompt: Open
+      outcome: Reveal Grayson’s prediction and prompt the question of loss.
+      approval: unreviewed
+  items:
+    - id: ITEM_GRAYSON_FORTUNE
+      name: Grayson’s fortune slip
+      kind: document
+      initial_state: hidden
+      persistence: chapter
+      interaction_prompt: Read
+      outcome: >-
+        Preserve the promise that Grayson will regain something within one
+        month.
+      approval: unreviewed
+  hud_events:
+    - id: HUD_FORTUNE_REVEAL
+      channel: item_reveal
+      text: Within one month you’ll gain back something you lost.
+      trigger: The player opens Grayson’s fortune cookie.
+      dismiss_mode: player_dismiss
+      duration_seconds: 0
+      approval: unreviewed
+  beats:
+    - id: BEAT_SHARED_VICES
+      title: Walk and trade vices
+      trigger:
+        type: begin_play
+      optional: false
+      actions:
+        - id: ACTION_MOVE_WOMAN_ALONG_ROUTE
+          type: move_npc
+          target_id: ACTOR_WHISKEY_WOMAN
+          detail: >-
+            Keep her beside Grayson while the bottle and cigarette trade hands.
+        - id: ACTION_PASS_WHISKEY
+          type: update_interactable
+          target_id: INTERACT_SHARED_WHISKEY_BOTTLE
+          detail: Alternate ownership without interrupting movement.
+        - id: ACTION_PASS_CIGARETTE
+          type: update_interactable
+          target_id: INTERACT_SHARED_CIGARETTE
+          detail: >-
+            Pair the handoff with softened city ambience and Grayson’s rare
+            smile.
+      approval: unreviewed
+    - id: BEAT_FORTUNE_COOKIE
+      title: Stop at Dragon Noodle
+      trigger:
+        type: interaction
+        target: INTERACT_FORTUNE_COOKIE
+      optional: false
+      actions:
+        - id: ACTION_GIVE_GRAYSON_FORTUNE
+          type: give_item
+          target_id: ITEM_GRAYSON_FORTUNE
+          detail: >-
+            Crack the cookie and keep the small paper legible as a retained
+            item.
+        - id: ACTION_SHOW_FORTUNE
+          type: show_hud
+          target_id: HUD_FORTUNE_REVEAL
+          detail: Present the source text exactly.
+        - id: ACTION_PLAY_GRAYSON_FORTUNE
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_FORTUNE
+          detail: Have Grayson read the line aloud before joking about his mind.
+      approval: unreviewed
+    - id: BEAT_HIDDEN_FORTUNE
+      title: Ask about her fortune
+      trigger:
+        type: dialogue_complete
+        target: DIALOGUE_GRAYSON_FORTUNE
+      optional: false
+      actions:
+        - id: ACTION_PLAY_LOST_MIND
+          type: play_dialogue
+          target_id: DIALOGUE_GRAYSON_LOST_MIND
+          detail: Let the joke briefly restore the playful tone.
+        - id: ACTION_PLAY_PRIVATE_FORTUNE
+          type: play_dialogue
+          target_id: DIALOGUE_WOMAN_FORTUNE_PRIVATE
+          detail: >-
+            Remove the humor from her expression and keep her slip unreadable.
+        - id: ACTION_UNLOCK_CONSTRUCTION_TOWER
+          type: unlock_exit
+          target_id: CH01_S09_CONSTRUCTION_TOWER
+          detail: Continue walking toward the construction-zone fence breach.
+      approval: unreviewed
+notes: >-
+  The woman’s fortune remains unread and her name remains unknown. Avoid camera
+  effects that make the intoxicated walk visually uncomfortable.

@@ -1,4 +1,5 @@
 import type { ChapterDraft, PresentationMode, SceneStatus } from "./editor-types";
+import { chapterOneScenesFourToNine } from "./chapter-one-scenes-4-9";
 
 const scene = (
   id: string,
@@ -20,6 +21,7 @@ const scene = (
   storyChanges: [],
   npcs: [],
   items: [],
+  interactables: [],
   hudEvents: [],
   beats: [],
   notes: "",
@@ -77,13 +79,11 @@ export const chapterSeed: ChapterDraft = {
           status: "approved",
         },
       ],
-      items: [
+      interactables: [
         {
           id: "INTERACT_PAINTED_WAVES",
           name: "Painted waves",
-          kind: "environmental_interactable",
-          initialState: "visible",
-          persistence: "scene",
+          kind: "inspection",
           interactionPrompt: "Inspect",
           outcome: "Reveal that the visible waves are deteriorating paint.",
           status: "approved",
@@ -273,13 +273,11 @@ export const chapterSeed: ChapterDraft = {
           status: "unreviewed",
         },
       ],
-      items: [
+      interactables: [
         {
           id: "INTERACT_VENUE_ENTRANCE",
           name: "Venue entrance",
-          kind: "environmental_interactable",
-          initialState: "visible",
-          persistence: "scene",
+          kind: "transition",
           interactionPrompt: "Enter",
           outcome: "Complete the approach and move Grayson backstage.",
           status: "unreviewed",
@@ -359,47 +357,6 @@ export const chapterSeed: ChapterDraft = {
         },
       ],
     },
-    scene(
-      "CH01_S04_BOOK_READING",
-      4,
-      "The Comedy Performance",
-      "Complete the reading while noticing the audience’s mediated attention.",
-      "static_cinematic",
-    ),
-    scene(
-      "CH01_S05_BACK_ALLEY",
-      5,
-      "After the Applause",
-      "Move from performance to private banter.",
-      "static_cinematic",
-    ),
-    scene(
-      "CH01_S06_RAIL_JOURNEY",
-      6,
-      "Converted Temples",
-      "Absorb visual worldbuilding without stopping the chapter.",
-      "scrolling_hd2d",
-    ),
-    scene(
-      "CH01_S07_HOTEL_BAR",
-      7,
-      "Real Whiskey",
-      "Decide how Grayson deflects while being drawn out of control.",
-      "static_cinematic",
-    ),
-    scene(
-      "CH01_S08_NIGHT_WALK",
-      8,
-      "Fortunes",
-      "Share a vice-driven interlude and receive an ambiguous promise.",
-      "scrolling_hd2d",
-    ),
-    scene(
-      "CH01_S09_CONSTRUCTION_TOWER",
-      9,
-      "Above the City",
-      "Reach a place where silence and isolation feel restorative rather than empty.",
-      "static_cinematic",
-    ),
+    ...chapterOneScenesFourToNine,
   ],
 };
