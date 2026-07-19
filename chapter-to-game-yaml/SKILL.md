@@ -56,22 +56,23 @@ Keep focused scenes in `scenes/`, compiled Unreal-facing data in `compiled/`, an
 
 ## Non-negotiable rules
 
-1. **Preserve canon.** Do not silently rewrite the chapter.
-2. **Separate fact from proposal.** Put source-supported material under `canonical`; put game-design interpretation under `adaptation`.
-3. **Record deliberate changes.** Every adaptation that changes order, staging, character presence, location, motivation, or outcome must appear in `changes_from_source`.
-4. **Use source anchors.** Every scene must include short start and end text anchors that can be located in the chapter.
-5. **Do not invent missing proper nouns.** Use a stable descriptive ID and add an unresolved question.
-6. **Prefer reusable kits.** Classify assets as `kit`, `shared`, or `unique`.
-7. **Do not over-segment.** Split scenes when at least one of these changes materially: location, time, player objective, dramatic purpose, controllable state, or transition mode.
-8. **Do not under-segment.** A long passage with a new gameplay loop or production environment should become a new scene even if prose flows continuously.
-9. **Use stable IDs.** IDs are uppercase snake case and must remain stable across revisions.
-10. **Express uncertainty.** Use `confidence` and `unresolved_questions`; never conceal ambiguity.
-11. **Flag sensitive material.** Record content that affects presentation, ratings, accessibility, or player safety under `content_notes` without moralizing or rewriting it.
-12. **No final dialogue rewrite.** Extract dialogue functions and candidate lines, but do not replace the author's final narrative writing unless separately requested.
-13. **Preserve author directives.** Carry approved project canon, interface decisions, and game-design rules forward into every later chapter. Do not re-ask resolved questions.
-14. **Use spoiler-safe identity labels.** When a character is unnamed in the current chapter but named later, preserve a stable descriptive ID and current display label until the approved reveal point.
-15. **Make dialogue consequences explicit.** Every proposed dialogue choice must declare `consequence_required`, intended `effect_scopes`, canonical bounds, and implementation status.
-16. **Classify interface information.** Record whether player-facing information is diegetic, non-diegetic, or an accessibility exception; do not invent a conventional HUD when an approved in-world interface exists.
+1. **Apply the governing child-safety redline.** Before analyzing or generating child-adjacent material, read `../docs/content-redlines-children-violence.md` completely and retain it as standing context. It permits implied and abstracted critique of institutional harm, but never explicit child injury or death, harmful player agency, exploitative camera focus, replicable mechanics of harm, sexual or suggestive child content, or use of a real child's likeness or voice. Apply its player-verb rule, abstraction toolkit, clip test, and escalation rule before output.
+2. **Preserve canon.** Do not silently rewrite the chapter.
+3. **Separate fact from proposal.** Put source-supported material under `canonical`; put game-design interpretation under `adaptation`.
+4. **Record deliberate changes.** Every adaptation that changes order, staging, character presence, location, motivation, or outcome must appear in `changes_from_source`.
+5. **Use source anchors.** Every scene must include short start and end text anchors that can be located in the chapter.
+6. **Do not invent missing proper nouns.** Use a stable descriptive ID and add an unresolved question.
+7. **Prefer reusable kits.** Classify assets as `kit`, `shared`, or `unique`.
+8. **Do not over-segment.** Split scenes when at least one of these changes materially: location, time, player objective, dramatic purpose, controllable state, or transition mode.
+9. **Do not under-segment.** A long passage with a new gameplay loop or production environment should become a new scene even if prose flows continuously.
+10. **Use stable IDs.** IDs are uppercase snake case and must remain stable across revisions.
+11. **Express uncertainty.** Use `confidence` and `unresolved_questions`; never conceal ambiguity.
+12. **Flag sensitive material.** Record content that affects presentation, ratings, accessibility, or player safety under `content_notes` without moralizing or rewriting it.
+13. **No final dialogue rewrite.** Extract dialogue functions and candidate lines, but do not replace the author's final narrative writing unless separately requested.
+14. **Preserve author directives.** Carry approved project canon, interface decisions, and game-design rules forward into every later chapter. Do not re-ask resolved questions.
+15. **Use spoiler-safe identity labels.** When a character is unnamed in the current chapter but named later, preserve a stable descriptive ID and current display label until the approved reveal point.
+16. **Make dialogue consequences explicit.** Every proposed dialogue choice must declare `consequence_required`, intended `effect_scopes`, canonical bounds, and implementation status.
+17. **Classify interface information.** Record whether player-facing information is diegetic, non-diegetic, or an accessibility exception; do not invent a conventional HUD when an approved in-world interface exists.
 
 ## Stable ID conventions
 
@@ -100,6 +101,7 @@ When a source does not name an entity, create a descriptive stable ID such as `C
 Before extracting the chapter:
 
 - Load all existing `author_directives`.
+- Load `../docs/content-redlines-children-violence.md` and apply it to all child-adjacent source, adaptation, art, audio, UI, and gameplay proposals.
 - Preserve project-canon reveal timing and spoiler-safe labels.
 - Apply the approved dialogue-choice and player-interface policies.
 - Do not convert an answered project question back to `open`.

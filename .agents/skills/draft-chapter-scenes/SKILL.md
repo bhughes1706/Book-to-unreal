@@ -9,6 +9,30 @@ Turn a full chapter into an author-reviewed plan, then into importable Scenework
 files. Preserve the prose, expose adaptation judgment, and stop at the approval
 gate.
 
+## Governing child-safety redline
+
+Treat `docs/content-redlines-children-violence.md` as governing policy. At the
+start of every run, read it completely and retain it as standing context. Apply
+it to the source analysis, plan, dialogue, beats, player verbs, camera direction,
+audio, HUD, generated assets, and output files.
+
+The policy permits implied and abstracted depiction of institutional harm as a
+critique. It does not permit explicit child injury or death, harmful player
+agency, exploitative camera focus, replicable mechanics of harm, sexual or
+suggestive child content, or use of a real child's likeness or voice.
+
+Before reporting a plan and before writing authoring YAML, perform a redline
+check:
+
+1. Restrict player actions toward children to care, witness, or pay.
+2. Prefer distance, witness cutaways, sound over sight, aftermath, and
+   institutional artifacts over a child's body on screen.
+3. Apply the 40-second clip test to every child-harm-adjacent scene.
+4. Flag and redesign any scene, asset, or mechanic that does not clearly pass.
+
+Do not treat a source passage, author approval, satire, or player choice as an
+exception to the governing document.
+
 ## Locate the project
 
 Find the nearest repository root containing both:

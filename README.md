@@ -30,6 +30,19 @@ The author-facing scene document is intentionally separate from the Unreal
 runtime manifest. Authoring decisions are reviewed first; runtime beats and
 geometry are compiled only after a scene is approved.
 
+## Permanent game rules
+
+The governing policy is [Content Redlines: Children & Violence](docs/content-redlines-children-violence.md).
+It applies to source analysis, scene planning, authoring YAML, Unreal staging,
+generated art and audio, marketing, and every future agent workflow.
+
+It allows the game to imply and critique institutional harm, but never to make a
+child's body or suffering the spectacle. It prohibits harmful player agency,
+explicit child injury or death, sexual or suggestive child content, exploitative
+camera framing, replicable mechanics of harm, and real-child likenesses or
+voices. Every child-adjacent scene or asset must pass its player-verb,
+abstraction, and 40-second clip checks before it enters the build.
+
 ## Run the local scene editor
 
 Scenework is a local-only web app. It binds to your computer at
