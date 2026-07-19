@@ -184,6 +184,29 @@ export const chapterSeed: ChapterDraft = {
       ),
       sourceExcerpt:
         "The dike meanders down the beach, one half the buzzing white electric of the city, the other half the consuming dark nothingness of the ocean.\n\nThere’s a boardwalk jutting out into the ocean. It’s lit with solar lights, creating a yellow line that defiantly pierces the blackness surrounding it. A man stands at the end of that boardwalk.\n\nI stare at that man. I stare at him until he disappears into the night.",
+      beats: [
+        {
+          id: "SCENE_BEAT_PIER_DIVER_DISAPPEARS",
+          title: "The man disappears from the pier",
+          triggerType: "begin_play",
+          triggerTarget: "",
+          optional: false,
+          eventThreadId: "EVENT_PIER_DIVER_FAMILY_PAYOUT",
+          eventThreadRole: "setup",
+          eventThreadNote:
+            "Grayson witnesses the registered diver disappear into the ocean; the state begins biometric verification.",
+          actions: [
+            {
+              id: "ACTION_RECORD_PIER_DIVER",
+              type: "set_flag",
+              targetId: "FLAG_PIER_DIVER_WITNESSED",
+              detail:
+                "Record the distant witness event without turning it into player agency.",
+            },
+          ],
+          status: "needs_discussion",
+        },
+      ],
     },
     {
       ...scene(

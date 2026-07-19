@@ -126,6 +126,13 @@ export function StagePreview({
                 >
                   <span>{hudChannelLabels[event.channel]}</span>
                   <p>{event.text || "On-screen text"}</p>
+                  {(event.responses || []).length > 0 && (
+                    <span className="preview-hud-responses">
+                      {(event.responses || []).map((response) => (
+                        <b key={response.id}>{response.label}</b>
+                      ))}
+                    </span>
+                  )}
                   <small>
                     {dismissLabels[event.dismissMode]}
                     {sinceBeat < index ? ` · since beat ${sinceBeat + 1}` : ""}

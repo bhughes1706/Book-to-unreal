@@ -1,6 +1,7 @@
 import type {
   BeatActionType,
   BeatTriggerType,
+  EventThreadRole,
   HudChannel,
   HudDismissMode,
   NpcBehavior,
@@ -98,6 +99,16 @@ export const dismissLabels: Record<HudDismissMode, string> = {
   player_dismiss: "Player dismisses",
   beat_advance: "Until next beat",
   persistent: "Persistent",
+};
+
+export const eventThreadRoleLabels: Record<EventThreadRole, string> = {
+  setup: "Setup",
+  escalation: "Escalation",
+  callback: "Callback",
+  choice: "Player choice",
+  consequence: "Consequence",
+  resolution: "Resolution",
+  reference: "Reference",
 };
 
 export type ResourceKind =
@@ -433,14 +444,37 @@ export function backReferences(
   return references;
 }
 
-export interface StagingDragPayload {
-  type:
-    | "beat"
-    | "npc"
-    | "item"
-    | "interactable"
-    | "hud"
-    | "npc-span-start"
-    | "npc-span-end";
-  id: string;
-}
+export type StagingDragPayload =
+  | {
+      type:
+        | "beat"
+        | "npc"
+        | "item"
+        | "interactable"
+        | "hud"
+        | "npc-presence"
+        | "npc-span-start"
+        | "npc-span-end";
+      id: string;
+    }
+  | {
+      type: "action-placement";
+      id: string;
+      sourceBeatId: string;
+    }
+  | {
+      type: "trigger-placement";
+      id: string;
+      sourceBeatId: string;
+    };
+
+export type TimelinePlacement =
+  | {
+      kind: "action";
+      beatId: string;
+      actionId: string;
+    }
+  | {
+      kind: "trigger";
+      beatId: string;
+    };

@@ -279,7 +279,44 @@
           ]
         },
         "duration_seconds": {"type": "number", "minimum": 0},
+        "responses": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/hud_response"}
+        },
+        "event_thread": {"$ref": "#/$defs/event_thread"},
         "approval": {"$ref": "#/$defs/approval"}
+      }
+    },
+    "hud_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "outcome"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "label": {"type": "string", "minLength": 1},
+        "outcome": {"type": "string", "minLength": 1},
+        "set_flag": {"$ref": "#/$defs/id"}
+      }
+    },
+    "event_thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "role"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "role": {
+          "enum": [
+            "setup",
+            "escalation",
+            "callback",
+            "choice",
+            "consequence",
+            "resolution",
+            "reference"
+          ]
+        },
+        "note": {"type": "string"}
       }
     },
     "beat": {
@@ -298,6 +335,7 @@
         "title": {"type": "string", "minLength": 1},
         "trigger": {"$ref": "#/$defs/beat_trigger"},
         "optional": {"type": "boolean"},
+        "event_thread": {"$ref": "#/$defs/event_thread"},
         "actions": {
           "type": "array",
           "minItems": 1,

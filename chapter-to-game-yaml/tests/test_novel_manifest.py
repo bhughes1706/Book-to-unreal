@@ -19,6 +19,9 @@ CHAPTER_DIR = ROOT / "chapters" / "CH01"
 SCENE = CHAPTER_DIR / "scenes" / "CH01_S01_DikeBeach.scene.yaml"
 SCENE_SCHEMA = ROOT / "schemas" / "scene_manifest.schema.json"
 AUTHORING = CHAPTER_DIR / "scenes" / "CH01_S03_TowardReading.authoring.yaml"
+EVENT_AUTHORING = (
+    ROOT.parent / "imports" / "CH01" / "CH01_S07_HOTEL_BAR.authoring.yaml"
+)
 AUTHORING_SCHEMA = ROOT / "schemas" / "scene_authoring.schema.json"
 CHAPTER = CHAPTER_DIR / "CH01.manifest.yaml"
 CHAPTER_SCHEMA = ROOT / "schemas" / "chapter_manifest.schema.json"
@@ -103,6 +106,23 @@ class SceneAuthoringTests(unittest.TestCase):
         document = load_yaml(AUTHORING)
         diagnostics = validate_schema(document, AUTHORING_SCHEMA)
         self.assertEqual([], diagnostics)
+
+    def test_event_thread_and_hud_responses_are_valid(self) -> None:
+        document = load_yaml(EVENT_AUTHORING)
+        diagnostics = validate_schema(document, AUTHORING_SCHEMA)
+        self.assertEqual([], diagnostics)
+
+        hud_event = next(
+            event
+            for event in document["staging"]["hud_events"]
+            if event["id"]
+            == "LENS_SYSTEM_NOTIFICATION_CONGRATULATE_DIVER_FAMILY"
+        )
+        self.assertEqual(
+            "EVENT_PIER_DIVER_FAMILY_PAYOUT",
+            hud_event["event_thread"]["id"],
+        )
+        self.assertEqual(2, len(hud_event["responses"]))
 
 
 class ChapterManifestTests(unittest.TestCase):

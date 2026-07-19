@@ -18,6 +18,8 @@ export function IdField({
   ariaLabel,
   reservedIds,
   onCommit,
+  suggestedId,
+  suggestionReason = "Suggested from the current name and content.",
   className = "",
 }: {
   value: string;
@@ -25,6 +27,8 @@ export function IdField({
   ariaLabel: string;
   reservedIds: string[];
   onCommit: (id: string) => void;
+  suggestedId?: string;
+  suggestionReason?: string;
   className?: string;
 }) {
   const [draft, setDraft] = useState(value);
@@ -48,6 +52,10 @@ export function IdField({
     setError("");
     if (nextValue !== value) onCommit(nextValue);
   };
+  const canUseSuggestion =
+    Boolean(suggestedId) &&
+    suggestedId !== value &&
+    !reservedIds.includes(suggestedId || "");
 
   return (
     <label className={`id-field ${className}`.trim()}>
@@ -71,9 +79,26 @@ export function IdField({
           }
         }}
       />
-      <small className={error ? "id-field-error" : ""}>
-        {error || "Referenced by beats and included in exports."}
-      </small>
+      {canUseSuggestion ? (
+        <small className="id-field-suggestion">
+          <span title={suggestionReason}>{suggestedId}</span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              setDraft(suggestedId || value);
+              setError("");
+              if (suggestedId) onCommit(suggestedId);
+            }}
+          >
+            Use suggestion
+          </button>
+        </small>
+      ) : (
+        <small className={error ? "id-field-error" : ""}>
+          {error || "Referenced by beats and included in exports."}
+        </small>
+      )}
     </label>
   );
 }

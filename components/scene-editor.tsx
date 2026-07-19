@@ -20,6 +20,7 @@ import {
   MessageSquareQuote,
   MonitorPlay,
   MoveHorizontal,
+  Network,
   PanelLeftClose,
   PanelTop,
   Plus,
@@ -28,6 +29,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Undo2,
   Upload,
   X,
 } from "lucide-react";
@@ -38,13 +40,21 @@ import {
   useRef,
   useState,
 } from "react";
+import type { SetStateAction } from "react";
 
+import {
+  ConfirmationDialog,
+  type ConfirmationRequest,
+} from "@/components/confirmation-dialog";
 import { IdField } from "@/components/id-field";
+import { EventThreadView } from "@/components/event-thread-view";
 import { StagingEditor } from "@/components/staging-editor";
 import type { StagingSelection } from "@/components/staging-editor";
 import type { ImportedScene } from "@/lib/authoring-import";
 import { parseAuthoringScene } from "@/lib/authoring-import";
 import { chapterSeed } from "@/lib/chapter-seed";
+import { dialogueIdSuggestion } from "@/lib/id-builder";
+import { buildStoryEventThreads } from "@/lib/story-events";
 import {
   actionLabels,
   hudChannelLabels,
@@ -69,7 +79,7 @@ import { sceneToJson, sceneToYaml } from "@/lib/scene-export";
 
 const WORKSPACE_KEY = "scenework.workspace.v1";
 const LEGACY_KEY = "scenework.chapter.CH01.v1";
-const SEED_DATA_VERSION = 3;
+const SEED_DATA_VERSION = 4;
 
 interface CheckIssue {
   key: string;
@@ -78,6 +88,22 @@ interface CheckIssue {
   tab: WorkspaceTab;
   staging?: StagingSelection;
   anchorId?: string;
+}
+
+interface UndoSnapshot {
+  chapters: ChapterDraft[];
+  activeChapterId: string;
+  activeSceneId: string;
+}
+
+function isTextEditingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
 }
 
 const sceneStatusLabel: Record<SceneStatus, string> = {
@@ -107,6 +133,7 @@ type WorkspaceTab =
   | "source"
   | "dialogue"
   | "staging"
+  | "events"
   | "changes"
   | "output";
 type OutputMode = "yaml" | "json";
@@ -235,41 +262,86 @@ function migrateChapter(
           ),
         })),
       };
+      const continuityHudIds = new Set([
+        "LENS_SYSTEM_NOTIFICATION_CONGRATULATE_DIVER_FAMILY",
+      ]);
+      const continuityBeatIds = new Set([
+        "SCENE_BEAT_PIER_DIVER_DISAPPEARS",
+        "SCENE_BEAT_DIVER_FAMILY_NOTIFICATION",
+      ]);
+      const withContinuity =
+        enrichSeedDetails && seededScene
+          ? {
+              ...migrated,
+              hudEvents: [
+                ...migrated.hudEvents,
+                ...seededScene.hudEvents.filter(
+                  (event) =>
+                    continuityHudIds.has(event.id) &&
+                    !migrated.hudEvents.some(
+                      (candidate) => candidate.id === event.id,
+                    ),
+                ),
+              ],
+              beats: [
+                ...migrated.beats,
+                ...seededScene.beats.filter(
+                  (beat) =>
+                    continuityBeatIds.has(beat.id) &&
+                    !migrated.beats.some(
+                      (candidate) => candidate.id === beat.id,
+                    ),
+                ),
+              ],
+            }
+          : migrated;
       const isNewlyDetailedChapterOneScene =
         seededScene &&
         seededScene.order >= 4 &&
         seededScene.order <= 9 &&
         seededScene.id.startsWith("CH01_");
       if (!enrichSeedDetails || !isNewlyDetailedChapterOneScene) {
-        return migrated;
+        return withContinuity;
       }
       return {
-        ...migrated,
-        timeContext: migrated.timeContext || seededScene.timeContext,
+        ...withContinuity,
+        timeContext: withContinuity.timeContext || seededScene.timeContext,
         status:
-          migrated.status === "draft" ? seededScene.status : migrated.status,
-        playerGoal: migrated.playerGoal || seededScene.playerGoal,
-        sourceExcerpt: migrated.sourceExcerpt || seededScene.sourceExcerpt,
+          withContinuity.status === "draft"
+            ? seededScene.status
+            : withContinuity.status,
+        playerGoal: withContinuity.playerGoal || seededScene.playerGoal,
+        sourceExcerpt:
+          withContinuity.sourceExcerpt || seededScene.sourceExcerpt,
         dialogue:
-          migrated.dialogue.length > 0
-            ? migrated.dialogue
+          withContinuity.dialogue.length > 0
+            ? withContinuity.dialogue
             : seededScene.dialogue,
         storyChanges:
-          migrated.storyChanges.length > 0
-            ? migrated.storyChanges
+          withContinuity.storyChanges.length > 0
+            ? withContinuity.storyChanges
             : seededScene.storyChanges,
-        npcs: migrated.npcs.length > 0 ? migrated.npcs : seededScene.npcs,
-        items: migrated.items.length > 0 ? migrated.items : seededScene.items,
+        npcs:
+          withContinuity.npcs.length > 0
+            ? withContinuity.npcs
+            : seededScene.npcs,
+        items:
+          withContinuity.items.length > 0
+            ? withContinuity.items
+            : seededScene.items,
         interactables:
-          migrated.interactables.length > 0
-            ? migrated.interactables
+          withContinuity.interactables.length > 0
+            ? withContinuity.interactables
             : seededScene.interactables,
         hudEvents:
-          migrated.hudEvents.length > 0
-            ? migrated.hudEvents
+          withContinuity.hudEvents.length > 0
+            ? withContinuity.hudEvents
             : seededScene.hudEvents,
-        beats: migrated.beats.length > 0 ? migrated.beats : seededScene.beats,
-        notes: migrated.notes || seededScene.notes,
+        beats:
+          withContinuity.beats.length > 0
+            ? withContinuity.beats
+            : seededScene.beats,
+        notes: withContinuity.notes || seededScene.notes,
       };
     }),
   };
@@ -398,11 +470,14 @@ function ReviewPill({
 }
 
 export function SceneEditor() {
-  const [chapters, setChapters] = useState<ChapterDraft[]>([chapterSeed]);
+  const [chapters, setChaptersRaw] = useState<ChapterDraft[]>([chapterSeed]);
   const [activeChapterId, setActiveChapterId] = useState(chapterSeed.id);
   const [activeSceneId, setActiveSceneId] = useState(
     "CH01_S03_WALK_TO_VENUE",
   );
+  const [canUndo, setCanUndo] = useState(false);
+  const [confirmation, setConfirmation] =
+    useState<ConfirmationRequest | null>(null);
   const [tab, setTab] = useState<WorkspaceTab>("source");
   const [outputMode, setOutputMode] = useState<OutputMode>("yaml");
   const [query, setQuery] = useState("");
@@ -419,6 +494,103 @@ export function SceneEditor() {
   );
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const chaptersRef = useRef<ChapterDraft[]>([chapterSeed]);
+  const activeChapterIdRef = useRef(activeChapterId);
+  const activeSceneIdRef = useRef(activeSceneId);
+  const undoStackRef = useRef<UndoSnapshot[]>([]);
+  const lastHistoryInputRef = useRef<{
+    element: Element | null;
+    at: number;
+  } | null>(null);
+
+  useEffect(() => {
+    activeChapterIdRef.current = activeChapterId;
+  }, [activeChapterId]);
+
+  useEffect(() => {
+    activeSceneIdRef.current = activeSceneId;
+  }, [activeSceneId]);
+
+  const setChapters = useCallback(
+    (update: SetStateAction<ChapterDraft[]>) => {
+      const current = chaptersRef.current;
+      const next =
+        typeof update === "function"
+          ? (update as (value: ChapterDraft[]) => ChapterDraft[])(current)
+          : update;
+      if (next === current) return;
+
+      const focused =
+        typeof document === "undefined" ? null : document.activeElement;
+      const now = Date.now();
+      const lastInput = lastHistoryInputRef.current;
+      const coalesce =
+        isTextEditingTarget(focused) &&
+        lastInput?.element === focused &&
+        now - lastInput.at < 700;
+
+      if (!coalesce) {
+        undoStackRef.current.push({
+          chapters: current,
+          activeChapterId: activeChapterIdRef.current,
+          activeSceneId: activeSceneIdRef.current,
+        });
+        if (undoStackRef.current.length > 80) {
+          undoStackRef.current.shift();
+        }
+      }
+      lastHistoryInputRef.current = isTextEditingTarget(focused)
+        ? { element: focused, at: now }
+        : null;
+      chaptersRef.current = next;
+      setChaptersRaw(next);
+      setCanUndo(undoStackRef.current.length > 0);
+    },
+    [],
+  );
+
+  const undo = useCallback(() => {
+    const snapshot = undoStackRef.current.pop();
+    if (!snapshot) {
+      setNotice("Nothing to undo.");
+      return;
+    }
+    lastHistoryInputRef.current = null;
+    chaptersRef.current = snapshot.chapters;
+    setChaptersRaw(snapshot.chapters);
+    activeChapterIdRef.current = snapshot.activeChapterId;
+    activeSceneIdRef.current = snapshot.activeSceneId;
+    setActiveChapterId(snapshot.activeChapterId);
+    setActiveSceneId(snapshot.activeSceneId);
+    setConfirmation(null);
+    setIssues(null);
+    setCanUndo(undoStackRef.current.length > 0);
+    setNotice("Undid the last workspace change.");
+  }, []);
+
+  const requestConfirmation = useCallback(
+    (request: ConfirmationRequest) => setConfirmation(request),
+    [],
+  );
+
+  const closeConfirmation = useCallback(() => setConfirmation(null), []);
+
+  useEffect(() => {
+    const handleUndo = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "z" ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.shiftKey ||
+        isTextEditingTarget(event.target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      undo();
+    };
+    window.addEventListener("keydown", handleUndo);
+    return () => window.removeEventListener("keydown", handleUndo);
+  }, [undo]);
 
   useEffect(() => {
     try {
@@ -435,10 +607,14 @@ export function SceneEditor() {
           const restored = parsed.chapters.map((chapter) =>
             migrateChapter(chapter, enrichSeedDetails),
           );
-          setChapters(restored);
+          chaptersRef.current = restored;
+          setChaptersRaw(restored);
+          undoStackRef.current = [];
+          setCanUndo(false);
           const restoredActive =
             restored.find((chapter) => chapter.id === parsed.activeChapterId) ??
             restored[0];
+          activeChapterIdRef.current = restoredActive.id;
           setActiveChapterId(restoredActive.id);
           setNotice("Recovered your local chapters.");
           setHydrated(true);
@@ -447,9 +623,13 @@ export function SceneEditor() {
       }
       const legacy = window.localStorage.getItem(LEGACY_KEY);
       if (legacy) {
-        setChapters([
+        const restored = [
           migrateChapter(JSON.parse(legacy) as ChapterDraft, true),
-        ]);
+        ];
+        chaptersRef.current = restored;
+        setChaptersRaw(restored);
+        undoStackRef.current = [];
+        setCanUndo(false);
         setNotice("Recovered your local edit and updated its staging data.");
       }
     } catch {
@@ -477,6 +657,14 @@ export function SceneEditor() {
     [chapters, activeChapterId],
   );
   const chapterIndex = chapters.indexOf(chapter);
+  const eventThreads = useMemo(
+    () => buildStoryEventThreads(chapter),
+    [chapter],
+  );
+  const eventThreadIds = useMemo(
+    () => eventThreads.map((thread) => thread.id),
+    [eventThreads],
+  );
 
   const activeScene = useMemo(
     () =>
@@ -590,34 +778,37 @@ export function SceneEditor() {
   };
 
   const deleteChapter = () => {
-    const confirmed = window.confirm(
-      `Delete ${chapter.title} (${chapter.id}) and its ${chapter.scenes.length} scene${
+    requestConfirmation({
+      title: `Delete ${chapter.title}?`,
+      description: `This removes ${chapter.id} and its ${chapter.scenes.length} scene${
         chapter.scenes.length === 1 ? "" : "s"
-      } from this browser? Export or import files are the only way to bring the content back.`,
-    );
-    if (!confirmed) return;
-    const remaining = chapters.filter(
-      (candidate) => candidate.id !== chapter.id,
-    );
-    const emptied = remaining.length === 0;
-    if (emptied) {
-      remaining.push({
-        id: "CH01",
-        title: "Chapter 1",
-        sourceFilename: "",
-        scenes: [blankScene("CH01_S01_NEW", 1)],
-      });
-    }
-    setChapters(remaining);
-    setActiveChapterId(remaining[0].id);
-    setActiveSceneId(remaining[0].scenes[0]?.id ?? "");
-    setTab("source");
-    setIssues(null);
-    setNotice(
-      emptied
-        ? "Chapter deleted. A blank chapter is ready — import scene files or paste new source."
-        : "Chapter deleted.",
-    );
+      } from the local workspace. Exported files are unaffected.`,
+      confirmLabel: "Delete chapter",
+      onConfirm: () => {
+        const remaining = chapters.filter(
+          (candidate) => candidate.id !== chapter.id,
+        );
+        const emptied = remaining.length === 0;
+        if (emptied) {
+          remaining.push({
+            id: "CH01",
+            title: "Chapter 1",
+            sourceFilename: "",
+            scenes: [blankScene("CH01_S01_NEW", 1)],
+          });
+        }
+        setChapters(remaining);
+        setActiveChapterId(remaining[0].id);
+        setActiveSceneId(remaining[0].scenes[0]?.id ?? "");
+        setTab("source");
+        setIssues(null);
+        setNotice(
+          emptied
+            ? "Chapter deleted. A blank chapter is ready — undo to restore it."
+            : "Chapter deleted. Press ⌘Z or Ctrl+Z to restore it.",
+        );
+      },
+    });
   };
 
   const deleteScene = () => {
@@ -627,24 +818,27 @@ export function SceneEditor() {
       );
       return;
     }
-    const confirmed = window.confirm(
-      `Delete scene “${activeScene.title}” (${activeScene.id})? This cannot be undone.`,
-    );
-    if (!confirmed) return;
-    const remaining = chapter.scenes
-      .filter((scene) => scene.id !== activeScene.id)
-      .map((scene, index) => ({ ...scene, order: index + 1 }));
-    setChapters((current) =>
-      current.map((candidate) =>
-        candidate.id === chapter.id
-          ? { ...candidate, scenes: remaining }
-          : candidate,
-      ),
-    );
-    setActiveSceneId(remaining[0].id);
-    setTab("source");
-    setIssues(null);
-    setNotice("Scene deleted.");
+    requestConfirmation({
+      title: `Delete “${activeScene.title}”?`,
+      description: `This removes ${activeScene.id}, including its dialogue, staging, and event links, from the local chapter.`,
+      confirmLabel: "Delete scene",
+      onConfirm: () => {
+        const remaining = chapter.scenes
+          .filter((scene) => scene.id !== activeScene.id)
+          .map((scene, index) => ({ ...scene, order: index + 1 }));
+        setChapters((current) =>
+          current.map((candidate) =>
+            candidate.id === chapter.id
+              ? { ...candidate, scenes: remaining }
+              : candidate,
+          ),
+        );
+        setActiveSceneId(remaining[0].id);
+        setTab("source");
+        setIssues(null);
+        setNotice("Scene deleted. Press ⌘Z or Ctrl+Z to restore it.");
+      },
+    });
   };
 
   const importScenes = async (files: FileList | null) => {
@@ -699,6 +893,19 @@ export function SceneEditor() {
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 80);
     }
+  };
+
+  const openEventOccurrence = (
+    sceneId: string,
+    selection: StagingSelection,
+  ) => {
+    setActiveSceneId(sceneId);
+    setTab("staging");
+    setStagingFocus((current) => ({
+      selection,
+      token: (current?.token ?? 0) + 1,
+    }));
+    setNotice("Opened this occurrence in its scene staging.");
   };
 
   const updateDialogue = (
@@ -775,9 +982,10 @@ export function SceneEditor() {
   };
 
   const addBlankDialogue = () => {
+    const id = `GRAYSON_DIALOGUE_NEW_LINE_${activeScene.dialogue.length + 1}`;
     const dialogue: DialogueUnit = {
-      id: `DIALOGUE_NEW_${activeScene.dialogue.length + 1}`,
-      speaker: "Speaker",
+      id,
+      speaker: "Grayson",
       text: "New dialogue line",
       sourceLocked: false,
       status: "unreviewed",
@@ -1031,6 +1239,24 @@ export function SceneEditor() {
           staging: focus,
         });
       }
+      if (event.responses && event.responses.length === 1) {
+        push({
+          location: "Staging · HUD",
+          message: `${name} has only one player response — add another response or make it informational.`,
+          tab: "staging",
+          staging: focus,
+        });
+      }
+      event.responses?.forEach((response, responseIndex) => {
+        if (!response.label.trim() || !response.outcome.trim()) {
+          push({
+            location: "Staging · HUD",
+            message: `${name}, response ${responseIndex + 1}, needs a label and an outcome.`,
+            tab: "staging",
+            staging: focus,
+          });
+        }
+      });
     });
 
     activeScene.beats.forEach((beat, beatIndex) => {
@@ -1189,6 +1415,10 @@ export function SceneEditor() {
 
   return (
     <main className="app-shell">
+      <ConfirmationDialog
+        request={confirmation}
+        onCancel={closeConfirmation}
+      />
       <header className="topbar">
         <div className="brand-lockup">
           <button
@@ -1217,6 +1447,15 @@ export function SceneEditor() {
           </span>
         </div>
         <div className="topbar-actions">
+          <button
+            className="button button-quiet"
+            onClick={undo}
+            disabled={!canUndo}
+            title="Undo last workspace change (⌘Z or Ctrl+Z)"
+          >
+            <Undo2 size={16} />
+            <span className="desktop-label">Undo</span>
+          </button>
           <button className="button button-quiet" onClick={runChecks}>
             <ShieldCheck size={16} />
             <span className="desktop-label">Run checks</span>
@@ -1424,6 +1663,7 @@ export function SceneEditor() {
               ["source", "Source", FileText],
               ["dialogue", "Dialogue", MessageSquareQuote],
               ["staging", "Staging", Clapperboard],
+              ["events", "Event threads", Network],
               ["changes", "Story changes", GitBranch],
               ["output", "Output", FileJson2],
             ] as const
@@ -1442,6 +1682,9 @@ export function SceneEditor() {
               )}
               {value === "staging" && activeScene.beats.length > 0 && (
                 <span className="tab-count">{activeScene.beats.length}</span>
+              )}
+              {value === "events" && eventThreads.length > 0 && (
+                <span className="tab-count">{eventThreads.length}</span>
               )}
               {value === "changes" && activeScene.storyChanges.length > 0 && (
                 <span className="tab-count">
@@ -1623,10 +1866,20 @@ export function SceneEditor() {
                           className="icon-button danger-hover"
                           aria-label="Remove dialogue line"
                           onClick={() =>
-                            updateScene({
-                              dialogue: activeScene.dialogue.filter(
-                                (item) => item.id !== dialogue.id,
-                              ),
+                            requestConfirmation({
+                              title: `Delete ${dialogue.speaker || "this"} line?`,
+                              description: `This removes “${truncate(dialogue.text, 90)}” and may leave beat references that need review.`,
+                              confirmLabel: "Delete dialogue",
+                              onConfirm: () => {
+                                updateScene({
+                                  dialogue: activeScene.dialogue.filter(
+                                    (item) => item.id !== dialogue.id,
+                                  ),
+                                });
+                                setNotice(
+                                  "Dialogue deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                                );
+                              },
                             })
                           }
                         >
@@ -1639,6 +1892,11 @@ export function SceneEditor() {
                           label="Dialogue ID"
                           ariaLabel={`Dialogue ${dialogueIndex + 1} ID`}
                           value={dialogue.id}
+                          suggestedId={dialogueIdSuggestion(
+                            dialogue.speaker,
+                            dialogue.text,
+                          )}
+                          suggestionReason="Character dialogue begins with the speaker name, then DIALOGUE, then a short line cadence."
                           reservedIds={activeSceneResourceIds.filter(
                             (id) => id !== dialogue.id,
                           )}
@@ -1800,23 +2058,31 @@ export function SceneEditor() {
                                         className="icon-button danger-hover"
                                         aria-label="Remove choice option"
                                         onClick={() =>
-                                          updateDialogue(
-                                            dialogue.id,
-                                            (item) => ({
-                                              ...item,
-                                              playerChoice: item.playerChoice
-                                                ? {
-                                                    ...item.playerChoice,
-                                                    options:
-                                                      item.playerChoice.options.filter(
-                                                        (candidate) =>
-                                                          candidate.id !==
-                                                          option.id,
-                                                      ),
-                                                  }
-                                                : undefined,
-                                            }),
-                                          )
+                                          requestConfirmation({
+                                            title: `Delete “${option.label}”?`,
+                                            description:
+                                              "This removes the response and its recorded consequence from the player choice.",
+                                            confirmLabel: "Delete response",
+                                            onConfirm: () =>
+                                              updateDialogue(
+                                                dialogue.id,
+                                                (item) => ({
+                                                  ...item,
+                                                  playerChoice:
+                                                    item.playerChoice
+                                                      ? {
+                                                          ...item.playerChoice,
+                                                          options:
+                                                            item.playerChoice.options.filter(
+                                                              (candidate) =>
+                                                                candidate.id !==
+                                                                option.id,
+                                                            ),
+                                                        }
+                                                      : undefined,
+                                                }),
+                                              ),
+                                          })
                                         }
                                       >
                                         <X size={14} />
@@ -1837,10 +2103,17 @@ export function SceneEditor() {
                             <button
                               className="text-button danger-text"
                               onClick={() =>
-                                updateDialogue(dialogue.id, (item) => ({
-                                  ...item,
-                                  playerChoice: undefined,
-                                }))
+                                requestConfirmation({
+                                  title: "Remove this player choice?",
+                                  description:
+                                    "This deletes every response, consequence, and canonical-bound note attached to the dialogue line.",
+                                  confirmLabel: "Remove choice",
+                                  onConfirm: () =>
+                                    updateDialogue(dialogue.id, (item) => ({
+                                      ...item,
+                                      playerChoice: undefined,
+                                    })),
+                                })
                               }
                             >
                               Remove choice
@@ -1861,6 +2134,15 @@ export function SceneEditor() {
               onChange={updateScene}
               onNotice={setNotice}
               focusRequest={stagingFocus}
+              eventThreadIds={eventThreadIds}
+              onRequestConfirmation={requestConfirmation}
+            />
+          )}
+
+          {tab === "events" && (
+            <EventThreadView
+              chapter={chapter}
+              onOpenOccurrence={openEventOccurrence}
             />
           )}
 

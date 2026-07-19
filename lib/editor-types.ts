@@ -128,6 +128,22 @@ export type HudDismissMode =
   | "beat_advance"
   | "persistent";
 
+export type EventThreadRole =
+  | "setup"
+  | "escalation"
+  | "callback"
+  | "choice"
+  | "consequence"
+  | "resolution"
+  | "reference";
+
+export interface HudResponse {
+  id: string;
+  label: string;
+  outcome: string;
+  setFlag: string;
+}
+
 export interface HudEvent {
   id: string;
   channel: HudChannel;
@@ -135,6 +151,10 @@ export interface HudEvent {
   trigger: string;
   dismissMode: HudDismissMode;
   durationSeconds: number;
+  responses?: HudResponse[];
+  eventThreadId?: string;
+  eventThreadRole?: EventThreadRole;
+  eventThreadNote?: string;
   status: ReviewStatus;
 }
 
@@ -176,6 +196,9 @@ export interface SceneBeat {
   triggerTarget: string;
   optional: boolean;
   actions: BeatAction[];
+  eventThreadId?: string;
+  eventThreadRole?: EventThreadRole;
+  eventThreadNote?: string;
   status: ReviewStatus;
 }
 

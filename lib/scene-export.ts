@@ -87,6 +87,27 @@ export function toAuthoringDocument(scene: SceneDraft) {
         trigger: event.trigger,
         dismiss_mode: event.dismissMode,
         duration_seconds: event.durationSeconds,
+        ...(event.responses && event.responses.length > 0
+          ? {
+              responses: event.responses.map((response) => ({
+                id: response.id,
+                label: response.label,
+                outcome: response.outcome,
+                ...(response.setFlag ? { set_flag: response.setFlag } : {}),
+              })),
+            }
+          : {}),
+        ...(event.eventThreadId
+          ? {
+              event_thread: {
+                id: event.eventThreadId,
+                role: event.eventThreadRole || "reference",
+                ...(event.eventThreadNote
+                  ? { note: event.eventThreadNote }
+                  : {}),
+              },
+            }
+          : {}),
         approval: event.status,
       })),
       beats: scene.beats.map((beat) => ({
@@ -97,6 +118,17 @@ export function toAuthoringDocument(scene: SceneDraft) {
           ...(beat.triggerTarget ? { target: beat.triggerTarget } : {}),
         },
         optional: beat.optional,
+        ...(beat.eventThreadId
+          ? {
+              event_thread: {
+                id: beat.eventThreadId,
+                role: beat.eventThreadRole || "reference",
+                ...(beat.eventThreadNote
+                  ? { note: beat.eventThreadNote }
+                  : {}),
+              },
+            }
+          : {}),
         actions: beat.actions.map((action) => ({
           id: action.id,
           type: action.type,

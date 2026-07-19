@@ -5,6 +5,7 @@ import type {
   BeatTriggerType,
   DialogueUnit,
   EffectScope,
+  EventThreadRole,
   HudChannel,
   HudDismissMode,
   NpcBehavior,
@@ -120,6 +121,15 @@ const dismissModes: HudDismissMode[] = [
   "player_dismiss",
   "beat_advance",
   "persistent",
+];
+const eventThreadRoles: EventThreadRole[] = [
+  "setup",
+  "escalation",
+  "callback",
+  "choice",
+  "consequence",
+  "resolution",
+  "reference",
 ];
 const triggerTypes: BeatTriggerType[] = [
   "begin_play",
@@ -272,6 +282,7 @@ function parseInteractable(
 
 function parseHudEvent(raw: Record<string, unknown>, index: number) {
   const duration = Number(raw.duration_seconds);
+  const eventThread = record(raw.event_thread);
   return {
     id: text(raw.id, `HUD_${index + 1}`),
     channel: oneOf(raw.channel, hudChannels, "internal_observation"),
@@ -279,12 +290,30 @@ function parseHudEvent(raw: Record<string, unknown>, index: number) {
     trigger: text(raw.trigger),
     dismissMode: oneOf(raw.dismiss_mode, dismissModes, "player_dismiss"),
     durationSeconds: Number.isFinite(duration) ? duration : 0,
+    responses: list(raw.responses).map((response, responseIndex) => ({
+      id: text(response.id, `HUD_RESPONSE_${responseIndex + 1}`),
+      label: text(response.label, "Respond"),
+      outcome: text(response.outcome),
+      setFlag: text(response.set_flag),
+    })),
+    ...(text(eventThread.id)
+      ? {
+          eventThreadId: text(eventThread.id),
+          eventThreadRole: oneOf(
+            eventThread.role,
+            eventThreadRoles,
+            "reference",
+          ),
+          eventThreadNote: text(eventThread.note),
+        }
+      : {}),
     status: oneOf(raw.approval, reviewStatuses, "unreviewed"),
   };
 }
 
 function parseBeat(raw: Record<string, unknown>, index: number): SceneBeat {
   const trigger = record(raw.trigger);
+  const eventThread = record(raw.event_thread);
   const beatId = text(raw.id, `BEAT_${index + 1}`);
   const actions = list(raw.actions).map((action, actionIndex) => ({
     id: text(action.id, `${beatId}_ACTION_${actionIndex + 1}`),
@@ -309,6 +338,17 @@ function parseBeat(raw: Record<string, unknown>, index: number): SceneBeat {
               detail: "",
             },
           ],
+    ...(text(eventThread.id)
+      ? {
+          eventThreadId: text(eventThread.id),
+          eventThreadRole: oneOf(
+            eventThread.role,
+            eventThreadRoles,
+            "reference",
+          ),
+          eventThreadNote: text(eventThread.note),
+        }
+      : {}),
     status: oneOf(raw.approval, reviewStatuses, "unreviewed"),
   };
 }

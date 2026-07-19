@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { IdField } from "@/components/id-field";
+import type { ConfirmationRequest } from "@/components/confirmation-dialog";
 import { ResourceRef, kindIcons } from "@/components/resource-ref";
 import { StagePreview } from "@/components/stage-preview";
 import { StagingTimeline } from "@/components/staging-timeline";
@@ -24,9 +25,11 @@ import type {
   BeatAction,
   BeatActionType,
   BeatTriggerType,
+  EventThreadRole,
   HudChannel,
   HudDismissMode,
   HudEvent,
+  HudResponse,
   NpcBehavior,
   NpcPresence,
   ReviewStatus,
@@ -40,7 +43,16 @@ import type {
   SceneItemState,
   SceneNpc,
 } from "@/lib/editor-types";
-import type { StagingDragPayload } from "@/lib/staging-model";
+import {
+  eventThreadIdSuggestion,
+  hudIdSuggestion,
+  interactableIdSuggestion,
+  itemIdSuggestion,
+} from "@/lib/id-builder";
+import type {
+  StagingDragPayload,
+  TimelinePlacement,
+} from "@/lib/staging-model";
 import {
   actionLabels,
   actionTargetKind,
@@ -49,10 +61,12 @@ import {
   behaviorLabels,
   buildCatalog,
   dismissLabels,
+  eventThreadRoleLabels,
   hudChannelLabels,
   interactableKindLabels,
   itemKindLabels,
   itemStateLabels,
+  npcSpan,
   persistenceLabels,
   presenceLabels,
   triggerLabels,
@@ -137,11 +151,15 @@ export function StagingEditor({
   onChange,
   onNotice,
   focusRequest,
+  eventThreadIds = [],
+  onRequestConfirmation,
 }: {
   scene: SceneDraft;
   onChange: (updates: Partial<SceneDraft>) => void;
   onNotice: (message: string) => void;
   focusRequest?: { selection: StagingSelection; token: number } | null;
+  eventThreadIds?: string[];
+  onRequestConfirmation: (request: ConfirmationRequest) => void;
 }) {
   const [panel, setPanel] = useState<StagingPanel>("beats");
   const [selection, setSelection] = useState<StagingSelection | null>(
@@ -274,6 +292,40 @@ export function StagingEditor({
     onChange({
       hudEvents: scene.hudEvents.map((event) =>
         event.id === eventId ? { ...event, ...updates } : event,
+      ),
+    });
+  };
+
+  const renameHudId = (eventId: string, replacementId: string) => {
+    onChange({
+      hudEvents: scene.hudEvents.map((event) =>
+        event.id === eventId ? { ...event, id: replacementId } : event,
+      ),
+      beats: scene.beats.map((beat) => ({
+        ...beat,
+        actions: beat.actions.map((action) => ({
+          ...action,
+          targetId:
+            action.targetId === eventId ? replacementId : action.targetId,
+        })),
+      })),
+    });
+    setSelection({ kind: "hud", id: replacementId });
+    onNotice(
+      `HUD ID renamed to ${replacementId}; beat references were updated.`,
+    );
+  };
+
+  const updateHudResponse = (
+    eventId: string,
+    responseId: string,
+    updates: Partial<HudResponse>,
+  ) => {
+    const hudEvent = scene.hudEvents.find((event) => event.id === eventId);
+    if (!hudEvent) return;
+    updateHudEvent(eventId, {
+      responses: (hudEvent.responses || []).map((response) =>
+        response.id === responseId ? { ...response, ...updates } : response,
       ),
     });
   };
@@ -421,6 +473,7 @@ export function StagingEditor({
           trigger: "Describe when this appears.",
           dismissMode: "player_dismiss",
           durationSeconds: 0,
+          responses: [],
           status: "unreviewed",
         },
       ],
@@ -463,7 +516,7 @@ export function StagingEditor({
     setScrub(toIndex);
   };
 
-  const removeBeat = (beatId: string) => {
+  const removeBeatNow = (beatId: string) => {
     onChange({
       beats: scene.beats.filter((candidate) => candidate.id !== beatId),
       npcs: scene.npcs.map((npc) => ({
@@ -473,7 +526,22 @@ export function StagingEditor({
       })),
     });
     setSelection(null);
-    onNotice("Beat removed. Check actions that may have referenced it.");
+    onNotice(
+      "Beat deleted. Press ⌘Z or Ctrl+Z to restore it; check any references if you keep the deletion.",
+    );
+  };
+
+  const requestRemoveBeat = (beatId: string) => {
+    const beat = scene.beats.find((candidate) => candidate.id === beatId);
+    if (!beat) return;
+    onRequestConfirmation({
+      title: `Delete “${beat.title}”?`,
+      description: `This removes the beat and its ${beat.actions.length} action${
+        beat.actions.length === 1 ? "" : "s"
+      }. NPC entrance or exit placements on this beat will be cleared.`,
+      confirmLabel: "Delete beat",
+      onConfirm: () => removeBeatNow(beat.id),
+    });
   };
 
   const retargetSpan = (
@@ -501,9 +569,168 @@ export function StagingEditor({
     }
   };
 
+  const moveNpcPresence = (npcId: string, beatIndex: number) => {
+    const npc = scene.npcs.find((candidate) => candidate.id === npcId);
+    const beat = scene.beats[beatIndex];
+    if (!npc || !beat) return;
+    const span = npcSpan(scene, npc);
+    const lastIndex = Math.max(scene.beats.length - 1, 0);
+    const duration = Math.max(span.end - span.start, 0);
+    const exitIndex = Math.min(beatIndex + duration, lastIndex);
+    updateNpc(npc.id, {
+      presence:
+        beatIndex === 0
+          ? "present_at_start"
+          : npc.presence === "conditional"
+            ? "conditional"
+            : "enters_on_beat",
+      entranceBeatId: beatIndex === 0 ? "" : beat.id,
+      exitBeatId:
+        exitIndex >= lastIndex ? "" : scene.beats[exitIndex]?.id || "",
+    });
+    setScrub(beatIndex);
+    select({ kind: "npc", id: npc.id });
+    onNotice(
+      beatIndex === 0
+        ? `${npc.displayName} is now present when the scene begins.`
+        : `${npc.displayName} now enters on “${beat.title}”.`,
+    );
+  };
+
+  const removeTimelinePlacementNow = (placement: TimelinePlacement) => {
+    const beat = scene.beats.find(
+      (candidate) => candidate.id === placement.beatId,
+    );
+    if (!beat) return;
+    if (placement.kind === "trigger") {
+      updateBeat(beat.id, {
+        triggerType: "begin_play",
+        triggerTarget: "",
+      });
+      onNotice(
+        `Removed the trigger from “${beat.title}”. The beat now starts with the scene; its resource remains available.`,
+      );
+      return;
+    }
+    const action = beat.actions.find(
+      (candidate) => candidate.id === placement.actionId,
+    );
+    if (!action) return;
+    updateBeat(beat.id, {
+      actions: beat.actions.filter(
+        (candidate) => candidate.id !== placement.actionId,
+      ),
+    });
+    onNotice(
+      `Removed ${actionLabels[action.type].toLowerCase()} from “${beat.title}”. The underlying resource was not deleted.`,
+    );
+  };
+
+  const requestRemoveTimelinePlacement = (placement: TimelinePlacement) => {
+    const beat = scene.beats.find(
+      (candidate) => candidate.id === placement.beatId,
+    );
+    if (!beat) return;
+    const action =
+      placement.kind === "action"
+        ? beat.actions.find(
+            (candidate) => candidate.id === placement.actionId,
+          )
+        : undefined;
+    onRequestConfirmation({
+      title:
+        placement.kind === "trigger"
+          ? `Remove the trigger from “${beat.title}”?`
+          : `Remove this placement from “${beat.title}”?`,
+      description:
+        placement.kind === "trigger"
+          ? "The beat will start with the scene instead. The item or interactable itself will remain available."
+          : `${action ? actionLabels[action.type] : "This action"} will be unstaged. Its HUD, item, or interactable resource will not be deleted.`,
+      confirmLabel: "Remove placement",
+      onConfirm: () => removeTimelinePlacementNow(placement),
+    });
+  };
+
   const dropResource = (payload: StagingDragPayload, beatIndex: number) => {
     const beat = scene.beats[beatIndex];
     if (!beat) return;
+    if (payload.type === "action-placement") {
+      const sourceBeat = scene.beats.find(
+        (candidate) => candidate.id === payload.sourceBeatId,
+      );
+      const action = sourceBeat?.actions.find(
+        (candidate) => candidate.id === payload.id,
+      );
+      if (!sourceBeat || !action) return;
+      if (sourceBeat.id === beat.id) {
+        onNotice(`That placement is already on “${beat.title}”.`);
+        return;
+      }
+      onChange({
+        beats: scene.beats.map((candidate) => {
+          if (candidate.id === sourceBeat.id) {
+            return {
+              ...candidate,
+              actions: candidate.actions.filter(
+                (sourceAction) => sourceAction.id !== action.id,
+              ),
+            };
+          }
+          if (candidate.id === beat.id) {
+            return {
+              ...candidate,
+              actions: [...candidate.actions, action],
+            };
+          }
+          return candidate;
+        }),
+      });
+      setScrub(beatIndex);
+      select({ kind: "beat", id: beat.id });
+      onNotice(
+        `Moved ${actionLabels[action.type].toLowerCase()} from “${sourceBeat.title}” to “${beat.title}”.`,
+      );
+      return;
+    }
+    if (payload.type === "trigger-placement") {
+      const sourceBeat = scene.beats.find(
+        (candidate) => candidate.id === payload.sourceBeatId,
+      );
+      if (!sourceBeat) return;
+      if (sourceBeat.id === beat.id) {
+        onNotice(`That trigger is already on “${beat.title}”.`);
+        return;
+      }
+      const sourceTrigger = {
+        triggerType: sourceBeat.triggerType,
+        triggerTarget: sourceBeat.triggerTarget,
+      };
+      const targetTrigger = {
+        triggerType: beat.triggerType,
+        triggerTarget: beat.triggerTarget,
+      };
+      onChange({
+        beats: scene.beats.map((candidate) => {
+          if (candidate.id === sourceBeat.id) {
+            return { ...candidate, ...targetTrigger };
+          }
+          if (candidate.id === beat.id) {
+            return { ...candidate, ...sourceTrigger };
+          }
+          return candidate;
+        }),
+      });
+      setScrub(beatIndex);
+      select({ kind: "beat", id: beat.id });
+      onNotice(
+        `Moved the trigger from “${sourceBeat.title}” to “${beat.title}”${
+          beat.triggerType === "begin_play"
+            ? "."
+            : " and moved the destination trigger back."
+        }`,
+      );
+      return;
+    }
     const actionId = nextId(
       `${beat.id}_ACTION`,
       beat.actions.map((action) => action.id),
@@ -749,15 +976,22 @@ export function StagingEditor({
 
   return (
     <section className="editor-section staging-section">
+      <datalist id={`event-thread-options-${scene.id}`}>
+        {eventThreadIds.map((eventId) => (
+          <option key={eventId} value={eventId} />
+        ))}
+      </datalist>
       <div className="section-heading">
         <div>
           <div className="eyebrow">Playable staging</div>
           <h2>Turn approved story intent into a sequence the player can feel.</h2>
         </div>
-        <button className="button button-secondary" onClick={addForPanel}>
-          <Plus size={16} />
-          {addLabel[panel]}
-        </button>
+        {panel !== "beats" && (
+          <button className="button button-secondary" onClick={addForPanel}>
+            <Plus size={16} />
+            {addLabel[panel]}
+          </button>
+        )}
       </div>
 
       <StagingTimeline
@@ -767,8 +1001,12 @@ export function StagingEditor({
         dragPayloadRef={dragPayloadRef}
         onSelect={select}
         onReorderBeat={moveBeat}
+        onAddBeat={addBeat}
+        onRemoveBeat={requestRemoveBeat}
+        onMoveNpcPresence={moveNpcPresence}
         onRetargetSpan={retargetSpan}
         onDropResource={dropResource}
+        onRemovePlacement={requestRemoveTimelinePlacement}
       />
 
       <StagePreview
@@ -1148,7 +1386,7 @@ export function StagingEditor({
                   <button
                     className="icon-button danger-hover"
                     aria-label="Remove beat"
-                    onClick={() => removeBeat(selectedBeat.id)}
+                    onClick={() => requestRemoveBeat(selectedBeat.id)}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -1208,6 +1446,64 @@ export function StagingEditor({
                     Optional
                   </label>
                 </div>
+              </div>
+
+              <div className="event-link-fields">
+                <label className="stage-field">
+                  <span>Event thread ID</span>
+                  <input
+                    list={`event-thread-options-${scene.id}`}
+                    placeholder={eventThreadIdSuggestion(selectedBeat.title)}
+                    value={selectedBeat.eventThreadId || ""}
+                    onChange={(event) =>
+                      updateBeat(selectedBeat.id, {
+                        eventThreadId: event.target.value
+                          .toUpperCase()
+                          .replace(/[\s-]+/g, "_")
+                          .replace(/[^A-Z0-9_]/g, ""),
+                      })
+                    }
+                  />
+                  <small>
+                    Reuse one ID in later scenes to build a continuity thread.
+                  </small>
+                </label>
+                {selectedBeat.eventThreadId && (
+                  <>
+                    <label className="stage-field">
+                      <span>Thread role</span>
+                      <select
+                        value={selectedBeat.eventThreadRole || "reference"}
+                        onChange={(event) =>
+                          updateBeat(selectedBeat.id, {
+                            eventThreadRole: event.target
+                              .value as EventThreadRole,
+                          })
+                        }
+                      >
+                        {Object.entries(eventThreadRoleLabels).map(
+                          ([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    <label className="stage-field event-link-note">
+                      <span>Continuity note</span>
+                      <input
+                        placeholder="What changes or carries forward here?"
+                        value={selectedBeat.eventThreadNote || ""}
+                        onChange={(event) =>
+                          updateBeat(selectedBeat.id, {
+                            eventThreadNote: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                )}
               </div>
 
               <div className="sentence-block">
@@ -1286,10 +1582,16 @@ export function StagingEditor({
                       aria-label="Remove action"
                       disabled={selectedBeat.actions.length === 1}
                       onClick={() =>
-                        updateBeat(selectedBeat.id, {
-                          actions: selectedBeat.actions.filter(
-                            (candidate) => candidate.id !== action.id,
-                          ),
+                        onRequestConfirmation({
+                          title: `Delete action ${actionIndex + 1}?`,
+                          description: `${actionLabels[action.type]} will be removed from “${selectedBeat.title}”. The underlying resource, if any, will remain available.`,
+                          confirmLabel: "Delete action",
+                          onConfirm: () =>
+                            updateBeat(selectedBeat.id, {
+                              actions: selectedBeat.actions.filter(
+                                (candidate) => candidate.id !== action.id,
+                              ),
+                            }),
                         })
                       }
                     >
@@ -1325,17 +1627,26 @@ export function StagingEditor({
                   <button
                     className="icon-button danger-hover"
                     aria-label="Remove NPC"
-                    onClick={() => {
-                      onChange({
-                        npcs: scene.npcs.filter(
-                          (candidate) => candidate.id !== selectedNpc.id,
-                        ),
-                      });
-                      setSelection(null);
-                      onNotice(
-                        "NPC removed. Any beat actions targeting it now need review.",
-                      );
-                    }}
+                    onClick={() =>
+                      onRequestConfirmation({
+                        title: `Delete ${selectedNpc.displayName}?`,
+                        description:
+                          "This removes the NPC and its timeline presence. Beat actions targeting it may need review.",
+                        confirmLabel: "Delete NPC",
+                        onConfirm: () => {
+                          onChange({
+                            npcs: scene.npcs.filter(
+                              (candidate) =>
+                                candidate.id !== selectedNpc.id,
+                            ),
+                          });
+                          setSelection(null);
+                          onNotice(
+                            "NPC deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                          );
+                        },
+                      })
+                    }
                   >
                     <Trash2 size={15} />
                   </button>
@@ -1462,18 +1773,26 @@ export function StagingEditor({
                   <button
                     className="icon-button danger-hover"
                     aria-label="Remove interactable"
-                    onClick={() => {
-                      onChange({
-                        interactables: scene.interactables.filter(
-                          (candidate) =>
-                            candidate.id !== selectedInteractable.id,
-                        ),
-                      });
-                      setSelection(null);
-                      onNotice(
-                        "Interactable removed. Any beat triggers or actions targeting it now need review.",
-                      );
-                    }}
+                    onClick={() =>
+                      onRequestConfirmation({
+                        title: `Delete ${selectedInteractable.name}?`,
+                        description:
+                          "This removes the world interactable. Beat triggers and actions targeting it may need review.",
+                        confirmLabel: "Delete interactable",
+                        onConfirm: () => {
+                          onChange({
+                            interactables: scene.interactables.filter(
+                              (candidate) =>
+                                candidate.id !== selectedInteractable.id,
+                            ),
+                          });
+                          setSelection(null);
+                          onNotice(
+                            "Interactable deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                          );
+                        },
+                      })
+                    }
                   >
                     <Trash2 size={15} />
                   </button>
@@ -1485,6 +1804,10 @@ export function StagingEditor({
                   label="Interactable ID"
                   ariaLabel="Interactable ID"
                   value={selectedInteractable.id}
+                  suggestedId={interactableIdSuggestion(
+                    selectedInteractable.name,
+                  )}
+                  suggestionReason="World interactables use WORLD_INTERACT followed by a short content cadence."
                   reservedIds={sceneResourceIds.filter(
                     (id) => id !== selectedInteractable.id,
                   )}
@@ -1561,17 +1884,26 @@ export function StagingEditor({
                   <button
                     className="icon-button danger-hover"
                     aria-label="Remove item"
-                    onClick={() => {
-                      onChange({
-                        items: scene.items.filter(
-                          (candidate) => candidate.id !== selectedItem.id,
-                        ),
-                      });
-                      setSelection(null);
-                      onNotice(
-                        "Item removed. Any beat actions targeting it now need review.",
-                      );
-                    }}
+                    onClick={() =>
+                      onRequestConfirmation({
+                        title: `Delete ${selectedItem.name}?`,
+                        description:
+                          "This removes the inventory item from the scene. Beat actions targeting it may need review.",
+                        confirmLabel: "Delete item",
+                        onConfirm: () => {
+                          onChange({
+                            items: scene.items.filter(
+                              (candidate) =>
+                                candidate.id !== selectedItem.id,
+                            ),
+                          });
+                          setSelection(null);
+                          onNotice(
+                            "Item deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                          );
+                        },
+                      })
+                    }
                   >
                     <Trash2 size={15} />
                   </button>
@@ -1583,6 +1915,8 @@ export function StagingEditor({
                   label="Item ID"
                   ariaLabel="Item ID"
                   value={selectedItem.id}
+                  suggestedId={itemIdSuggestion(selectedItem.name)}
+                  suggestionReason="Inventory IDs begin with the owner, then ITEM, then a short name cadence."
                   reservedIds={sceneResourceIds.filter(
                     (id) => id !== selectedItem.id,
                   )}
@@ -1684,17 +2018,28 @@ export function StagingEditor({
                   <button
                     className="icon-button danger-hover"
                     aria-label="Remove HUD event"
-                    onClick={() => {
-                      onChange({
-                        hudEvents: scene.hudEvents.filter(
-                          (candidate) => candidate.id !== selectedHud.id,
-                        ),
-                      });
-                      setSelection(null);
-                      onNotice(
-                        "HUD event removed. Any beat actions targeting it now need review.",
-                      );
-                    }}
+                    onClick={() =>
+                      onRequestConfirmation({
+                        title: "Delete this HUD event?",
+                        description: `This removes “${selectedHud.text.slice(
+                          0,
+                          110,
+                        )}” and its player responses. Beat actions targeting it may need review.`,
+                        confirmLabel: "Delete HUD event",
+                        onConfirm: () => {
+                          onChange({
+                            hudEvents: scene.hudEvents.filter(
+                              (candidate) =>
+                                candidate.id !== selectedHud.id,
+                            ),
+                          });
+                          setSelection(null);
+                          onNotice(
+                            "HUD event deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                          );
+                        },
+                      })
+                    }
                   >
                     <Trash2 size={15} />
                   </button>
@@ -1704,6 +2049,15 @@ export function StagingEditor({
               <div className={`hud-preview hud-${selectedHud.channel}`}>
                 <span>{hudChannelLabels[selectedHud.channel]}</span>
                 <p>{selectedHud.text || "On-screen text preview"}</p>
+                {(selectedHud.responses || []).length > 0 && (
+                  <div className="hud-preview-responses">
+                    {(selectedHud.responses || []).map((response) => (
+                      <button type="button" key={response.id}>
+                        {response.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <small>{dismissLabels[selectedHud.dismissMode]}</small>
               </div>
 
@@ -1737,6 +2091,25 @@ export function StagingEditor({
                 )}
 
               <div className="stage-fields inspector-fields">
+                <IdField
+                  className="stage-field"
+                  label="HUD event ID"
+                  ariaLabel="HUD event ID"
+                  value={selectedHud.id}
+                  suggestedId={hudIdSuggestion(
+                    selectedHud.channel,
+                    selectedHud.text,
+                  )}
+                  suggestionReason={
+                    selectedHud.channel === "internal_observation"
+                      ? "Internal observations use GRAYSON_MONOLOGUE followed by a short content cadence."
+                      : "Lens UI uses LENS, the channel, and a short content cadence."
+                  }
+                  reservedIds={sceneResourceIds.filter(
+                    (id) => id !== selectedHud.id,
+                  )}
+                  onCommit={(next) => renameHudId(selectedHud.id, next)}
+                />
                 <label className="stage-field">
                   <span>Channel</span>
                   <select
@@ -1808,6 +2181,163 @@ export function StagingEditor({
                     }
                   />
                 </label>
+                <label className="stage-field">
+                  <span>Event thread ID</span>
+                  <input
+                    list={`event-thread-options-${scene.id}`}
+                    placeholder={eventThreadIdSuggestion(selectedHud.text)}
+                    value={selectedHud.eventThreadId || ""}
+                    onChange={(event) =>
+                      updateHudEvent(selectedHud.id, {
+                        eventThreadId: event.target.value
+                          .toUpperCase()
+                          .replace(/[\s-]+/g, "_")
+                          .replace(/[^A-Z0-9_]/g, ""),
+                      })
+                    }
+                  />
+                  <small>
+                    Reuse this ID on beats or HUD events in other scenes.
+                  </small>
+                </label>
+                {selectedHud.eventThreadId && (
+                  <>
+                    <label className="stage-field">
+                      <span>Thread role</span>
+                      <select
+                        value={selectedHud.eventThreadRole || "reference"}
+                        onChange={(event) =>
+                          updateHudEvent(selectedHud.id, {
+                            eventThreadRole: event.target
+                              .value as EventThreadRole,
+                          })
+                        }
+                      >
+                        {Object.entries(eventThreadRoleLabels).map(
+                          ([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    <label className="stage-field">
+                      <span>Continuity note</span>
+                      <input
+                        placeholder="What does this recall or change?"
+                        value={selectedHud.eventThreadNote || ""}
+                        onChange={(event) =>
+                          updateHudEvent(selectedHud.id, {
+                            eventThreadNote: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+
+              <div className="hud-response-builder">
+                <div className="sentence-block-head">
+                  <span className="sentence-kicker">Player responses</span>
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => {
+                      const responses = selectedHud.responses || [];
+                      const index = responses.length + 1;
+                      updateHudEvent(selectedHud.id, {
+                        responses: [
+                          ...responses,
+                          {
+                            id: `${selectedHud.id}_RESPONSE_${index}`,
+                            label: "New response",
+                            outcome: "Describe what this response changes.",
+                            setFlag: "",
+                          },
+                        ],
+                      });
+                    }}
+                  >
+                    <Plus size={13} />
+                    Add response
+                  </button>
+                </div>
+                {(selectedHud.responses || []).length === 0 ? (
+                  <p className="hud-response-empty">
+                    Leave empty for informational HUD. Add responses when the
+                    Lens asks the player to decide.
+                  </p>
+                ) : (
+                  <div className="hud-response-list">
+                    {(selectedHud.responses || []).map((response, index) => (
+                      <div className="hud-response-row" key={response.id}>
+                        <span>{index + 1}</span>
+                        <input
+                          aria-label={`HUD response ${index + 1} label`}
+                          value={response.label}
+                          onChange={(event) =>
+                            updateHudResponse(
+                              selectedHud.id,
+                              response.id,
+                              { label: event.target.value },
+                            )
+                          }
+                        />
+                        <input
+                          aria-label={`HUD response ${index + 1} outcome`}
+                          placeholder="Outcome"
+                          value={response.outcome}
+                          onChange={(event) =>
+                            updateHudResponse(
+                              selectedHud.id,
+                              response.id,
+                              { outcome: event.target.value },
+                            )
+                          }
+                        />
+                        <input
+                          aria-label={`HUD response ${index + 1} flag`}
+                          placeholder="Optional flag"
+                          value={response.setFlag}
+                          onChange={(event) =>
+                            updateHudResponse(selectedHud.id, response.id, {
+                              setFlag: event.target.value
+                                .toUpperCase()
+                                .replace(/[\s-]+/g, "_")
+                                .replace(/[^A-Z0-9_]/g, ""),
+                            })
+                          }
+                        />
+                        <button
+                          className="icon-button danger-hover"
+                          type="button"
+                          aria-label={`Remove HUD response ${index + 1}`}
+                          onClick={() =>
+                            onRequestConfirmation({
+                              title: `Delete “${response.label}”?`,
+                              description:
+                                "This removes the HUD response, its outcome, and its state flag.",
+                              confirmLabel: "Delete response",
+                              onConfirm: () =>
+                                updateHudEvent(selectedHud.id, {
+                                  responses: (
+                                    selectedHud.responses || []
+                                  ).filter(
+                                    (candidate) =>
+                                      candidate.id !== response.id,
+                                  ),
+                                }),
+                            })
+                          }
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               {renderBackRefs(selectedHud.id)}
             </div>

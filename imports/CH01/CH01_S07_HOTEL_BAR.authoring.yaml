@@ -278,6 +278,34 @@ staging:
       dismiss_mode: beat_advance
       duration_seconds: 0
       approval: unreviewed
+    - id: LENS_SYSTEM_NOTIFICATION_CONGRATULATE_DIVER_FAMILY
+      channel: system_notification
+      text: >-
+        Registered diver status confirmed. Would you like to congratulate the
+        beneficiary family?
+      trigger: >-
+        The Life Bracelet network confirms the pier diver’s registered death
+        while Grayson is in the hotel bar.
+      dismiss_mode: player_dismiss
+      duration_seconds: 0
+      responses:
+        - id: GRAYSON_RESPONSE_CONGRATULATE_FAMILY
+          label: Congratulate the family
+          outcome: >-
+            Send the state-authored condolence and congratulations message
+            through the Lens.
+          set_flag: FLAG_DIVER_FAMILY_CONGRATULATED
+        - id: GRAYSON_RESPONSE_DISMISS_DIVER_NOTICE
+          label: Dismiss
+          outcome: Close the prompt without contacting the beneficiary family.
+          set_flag: FLAG_DIVER_FAMILY_NOTICE_DISMISSED
+      event_thread:
+        id: EVENT_PIER_DIVER_FAMILY_PAYOUT
+        role: callback
+        note: >-
+          The state converts the distant death Grayson witnessed into a polite
+          social prompt.
+      approval: needs_discussion
   beats:
     - id: BEAT_NOAH_DEPARTS
       title: Enter the purple bar
@@ -292,6 +320,20 @@ staging:
             Establish isolated patrons, the wall of fire, and Grayson’s empty
             neighboring seats.
       approval: unreviewed
+    - id: SCENE_BEAT_DIVER_FAMILY_NOTIFICATION
+      title: The state confirms the pier diver
+      trigger:
+        type: beat_completed
+        target: BEAT_NOAH_DEPARTS
+      optional: false
+      actions:
+        - id: ACTION_SHOW_DIVER_FAMILY_NOTIFICATION
+          type: show_hud
+          target_id: LENS_SYSTEM_NOTIFICATION_CONGRATULATE_DIVER_FAMILY
+          detail: >-
+            Interrupt the warm bar lighting with a polite state prompt that
+            reduces the witnessed death to a social transaction.
+      approval: needs_discussion
     - id: BEAT_WOMAN_SITS
       title: The woman takes the next seat
       trigger:

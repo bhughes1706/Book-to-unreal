@@ -5,14 +5,19 @@ import {
   GripVertical,
   MousePointerClick,
   Package,
+  Plus,
   Users,
+  X,
   Zap,
 } from "lucide-react";
-import type { MutableRefObject } from "react";
-import { useState } from "react";
+import type { DragEvent, MutableRefObject, ReactNode } from "react";
+import { useRef, useState } from "react";
 
 import type { SceneDraft } from "@/lib/editor-types";
-import type { StagingDragPayload } from "@/lib/staging-model";
+import type {
+  StagingDragPayload,
+  TimelinePlacement,
+} from "@/lib/staging-model";
 import {
   npcSpan,
   triggerLabels,
@@ -21,6 +26,66 @@ import type { StagingSelection } from "@/components/staging-editor";
 
 const DRAG_MIME = "application/x-staging";
 
+function TimelineMarker({
+  className,
+  title,
+  ariaLabel,
+  dragPayload,
+  onStartDrag,
+  onEndDrag,
+  onSelect,
+  onRemove,
+  children,
+}: {
+  className: string;
+  title: string;
+  ariaLabel: string;
+  dragPayload: StagingDragPayload;
+  onStartDrag: (
+    payload: StagingDragPayload,
+    event: DragEvent<HTMLButtonElement>,
+  ) => void;
+  onEndDrag: () => void;
+  onSelect: () => void;
+  onRemove: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="tl-marker-placement">
+      <button
+        type="button"
+        draggable
+        className={className}
+        title={`${title} · Drag to another beat`}
+        aria-label={ariaLabel}
+        onDragStart={(event) => onStartDrag(dragPayload, event)}
+        onDragEnd={onEndDrag}
+        onClick={onSelect}
+        onKeyDown={(event) => {
+          if (event.key === "Delete" || event.key === "Backspace") {
+            event.preventDefault();
+            onRemove();
+          }
+        }}
+      >
+        {children}
+      </button>
+      <button
+        type="button"
+        className="tl-marker-remove"
+        aria-label={`Remove ${ariaLabel} from timeline`}
+        title="Remove this placement from the timeline"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}
+      >
+        <X size={9} />
+      </button>
+    </div>
+  );
+}
+
 export function StagingTimeline({
   scene,
   scrubIndex,
@@ -28,8 +93,12 @@ export function StagingTimeline({
   dragPayloadRef,
   onSelect,
   onReorderBeat,
+  onAddBeat,
+  onRemoveBeat,
+  onMoveNpcPresence,
   onRetargetSpan,
   onDropResource,
+  onRemovePlacement,
 }: {
   scene: SceneDraft;
   scrubIndex: number;
@@ -37,15 +106,20 @@ export function StagingTimeline({
   dragPayloadRef: MutableRefObject<StagingDragPayload | null>;
   onSelect: (selection: StagingSelection) => void;
   onReorderBeat: (fromIndex: number, toIndex: number) => void;
+  onAddBeat: () => void;
+  onRemoveBeat: (beatId: string) => void;
+  onMoveNpcPresence: (npcId: string, beatIndex: number) => void;
   onRetargetSpan: (
     npcId: string,
     edge: "start" | "end",
     beatIndex: number,
   ) => void;
   onDropResource: (payload: StagingDragPayload, beatIndex: number) => void;
+  onRemovePlacement: (placement: TimelinePlacement) => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const [dropColumn, setDropColumn] = useState<number | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const beats = scene.beats;
   const columns = beats.length;
@@ -62,6 +136,15 @@ export function StagingTimeline({
   const startDrag = (payload: StagingDragPayload) => {
     dragPayloadRef.current = payload;
     setDragging(true);
+  };
+
+  const startPlacementDrag = (
+    payload: StagingDragPayload,
+    event: DragEvent<HTMLButtonElement>,
+  ) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(DRAG_MIME, payload.id);
+    startDrag(payload);
   };
 
   const endDrag = () => {
@@ -82,11 +165,37 @@ export function StagingTimeline({
       onRetargetSpan(payload.id, "start", beatIndex);
     } else if (payload.type === "npc-span-end") {
       onRetargetSpan(payload.id, "end", beatIndex);
+    } else if (payload.type === "npc-presence") {
+      onMoveNpcPresence(payload.id, beatIndex);
     } else {
       onDropResource(payload, beatIndex);
     }
     endDrag();
   };
+
+  const beatIndexAt = (clientX: number) => {
+    const headers = Array.from(
+      gridRef.current?.querySelectorAll<HTMLElement>("[data-beat-column]") ||
+        [],
+    );
+    const match = headers.find((header) => {
+      const bounds = header.getBoundingClientRect();
+      return clientX >= bounds.left && clientX <= bounds.right;
+    });
+    if (!match) return null;
+    const index = Number(match.dataset.beatColumn);
+    return Number.isInteger(index) ? index : null;
+  };
+
+  const isMovePayload = (payload: StagingDragPayload) =>
+    [
+      "beat",
+      "npc-presence",
+      "npc-span-start",
+      "npc-span-end",
+      "action-placement",
+      "trigger-placement",
+    ].includes(payload.type);
 
   if (columns === 0) {
     return (
@@ -96,6 +205,14 @@ export function StagingTimeline({
           Add a beat to start the timeline. Beats are the columns; NPCs,
           interactables, inventory items, and HUD events land on them.
         </p>
+        <button
+          type="button"
+          className="button button-primary"
+          onClick={onAddBeat}
+        >
+          <Plus size={14} />
+          Add first beat
+        </button>
       </div>
     );
   }
@@ -105,25 +222,62 @@ export function StagingTimeline({
 
   return (
     <div className="staging-timeline">
+      <div className="tl-toolbar">
+        <div>
+          <strong>Scene timeline</strong>
+          <small>{beats.length} beat{beats.length === 1 ? "" : "s"}</small>
+        </div>
+        <button
+          type="button"
+          className="button button-quiet"
+          onClick={onAddBeat}
+        >
+          <Plus size={14} />
+          Add beat
+        </button>
+      </div>
       <div className="tl-scroll">
         <div
+          ref={gridRef}
           className={`tl-grid ${dragging ? "is-dragging" : ""}`}
           style={gridStyle}
+          onDragOver={(event) => {
+            const payload = dragPayloadRef.current;
+            const beatIndex = beatIndexAt(event.clientX);
+            if (!payload || beatIndex === null) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = isMovePayload(payload)
+              ? "move"
+              : "copy";
+            setDropColumn(beatIndex);
+          }}
+          onDragLeave={(event) => {
+            if (
+              event.relatedTarget instanceof Node &&
+              event.currentTarget.contains(event.relatedTarget)
+            ) {
+              return;
+            }
+            setDropColumn(null);
+          }}
+          onDrop={(event) => {
+            const beatIndex = beatIndexAt(event.clientX);
+            if (beatIndex === null) return;
+            event.preventDefault();
+            handleDrop(beatIndex);
+          }}
         >
           <div className="tl-corner" style={{ gridRow: 1, gridColumn: 1 }}>
             Sequence
           </div>
 
           {beats.map((beat, index) => (
-            <button
+            <div
               key={beat.id}
-              type="button"
               draggable
-              className={`tl-beat-head ${
-                isSelected("beat", beat.id) ? "is-selected" : ""
-              } ${index === scrubIndex ? "is-playhead" : ""} status-tint-${beat.status}`}
+              className="tl-beat-slot"
+              data-beat-column={index}
               style={{ gridRow: 1, gridColumn: index + 2 }}
-              onClick={() => onSelect({ kind: "beat", id: beat.id })}
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData(DRAG_MIME, beat.id);
@@ -131,16 +285,42 @@ export function StagingTimeline({
               }}
               onDragEnd={endDrag}
             >
-              <span className="tl-beat-order">
-                <GripVertical size={12} />
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <strong>{beat.title}</strong>
-              <small>
-                {triggerLabels[beat.triggerType]}
-                {beat.optional ? " · optional" : ""}
-              </small>
-            </button>
+              <button
+                type="button"
+                className={`tl-beat-head ${
+                  isSelected("beat", beat.id) ? "is-selected" : ""
+                } ${index === scrubIndex ? "is-playhead" : ""} status-tint-${beat.status}`}
+                onClick={() => onSelect({ kind: "beat", id: beat.id })}
+                onKeyDown={(event) => {
+                  if (event.key === "Delete" || event.key === "Backspace") {
+                    event.preventDefault();
+                    onRemoveBeat(beat.id);
+                  }
+                }}
+              >
+                <span className="tl-beat-order">
+                  <GripVertical size={12} />
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <strong>{beat.title}</strong>
+                <small>
+                  {triggerLabels[beat.triggerType]}
+                  {beat.optional ? " · optional" : ""}
+                </small>
+              </button>
+              <button
+                type="button"
+                className="tl-beat-remove"
+                aria-label={`Delete beat ${beat.title}`}
+                title="Delete this beat"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRemoveBeat(beat.id);
+                }}
+              >
+                <X size={10} />
+              </button>
+            </div>
           ))}
 
           {scene.npcs.map((npc, npcIndex) => {
@@ -172,10 +352,18 @@ export function StagingTimeline({
                 className={`tl-span ${span.conditional ? "is-conditional" : ""} ${
                   span.broken ? "is-broken" : ""
                 } ${isSelected("npc", npc.id) ? "is-selected" : ""}`}
+                draggable
+                title="Drag this presence bar to change the NPC’s entrance beat"
                 style={{
                   gridRow: row,
                   gridColumn: `${span.start + 2} / ${span.end + 3}`,
                 }}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData(DRAG_MIME, npc.id);
+                  startDrag({ type: "npc-presence", id: npc.id });
+                }}
+                onDragEnd={endDrag}
                 onClick={() => onSelect({ kind: "npc", id: npc.id })}
                 role="button"
                 tabIndex={0}
@@ -219,6 +407,53 @@ export function StagingTimeline({
                   onDragEnd={endDrag}
                 />
               </div>,
+              ...beats.flatMap((beat, beatIndex) =>
+                beat.actions
+                  .filter(
+                    (action) =>
+                      (action.type === "move_npc" ||
+                        action.type === "spawn_npc") &&
+                      action.targetId === npc.id,
+                  )
+                  .map((action) => (
+                    <div
+                      key={`${npc.id}-${beat.id}-${action.id}`}
+                      className="tl-npc-marker-cell"
+                      data-lane="npc"
+                      data-beat-index={beatIndex}
+                      style={{ gridRow: row, gridColumn: beatIndex + 2 }}
+                    >
+                      <TimelineMarker
+                        className={`tl-marker tl-marker-npc ${
+                          isSelected("npc", npc.id) ? "is-selected" : ""
+                        }`}
+                        title={`${action.type === "spawn_npc" ? "Entrance" : "Move"}: ${npc.displayName}`}
+                        ariaLabel={`${npc.displayName} ${
+                          action.type === "spawn_npc"
+                            ? "entrance"
+                            : "movement"
+                        } placement`}
+                        dragPayload={{
+                          type: "action-placement",
+                          id: action.id,
+                          sourceBeatId: beat.id,
+                        }}
+                        onStartDrag={startPlacementDrag}
+                        onEndDrag={endDrag}
+                        onSelect={() => onSelect({ kind: "npc", id: npc.id })}
+                        onRemove={() =>
+                          onRemovePlacement({
+                            kind: "action",
+                            beatId: beat.id,
+                            actionId: action.id,
+                          })
+                        }
+                      >
+                        <Users size={11} />
+                      </TimelineMarker>
+                    </div>
+                  )),
+              ),
             ];
           })}
 
@@ -234,6 +469,8 @@ export function StagingTimeline({
               <div
                 key={`${beat.id}-hud`}
                 className={`tl-cell ${index === scrubIndex ? "is-playhead" : ""}`}
+                data-lane="hud"
+                data-beat-index={index}
                 style={{ gridRow: hudRow, gridColumn: index + 2 }}
               >
                 {shows.map((action) => {
@@ -241,19 +478,37 @@ export function StagingTimeline({
                     (candidate) => candidate.id === action.targetId,
                   );
                   return (
-                    <button
+                    <TimelineMarker
                       key={action.id}
-                      type="button"
                       className={`tl-marker tl-marker-hud ${
                         event && isSelected("hud", event.id) ? "is-selected" : ""
                       } ${event ? "" : "is-broken"}`}
                       title={event ? event.text : `Unknown HUD: ${action.targetId}`}
-                      onClick={() =>
+                      ariaLabel={
+                        event
+                          ? `${event.text} HUD placement`
+                          : `Unknown HUD ${action.targetId}`
+                      }
+                      dragPayload={{
+                        type: "action-placement",
+                        id: action.id,
+                        sourceBeatId: beat.id,
+                      }}
+                      onStartDrag={startPlacementDrag}
+                      onEndDrag={endDrag}
+                      onSelect={() =>
                         event && onSelect({ kind: "hud", id: event.id })
+                      }
+                      onRemove={() =>
+                        onRemovePlacement({
+                          kind: "action",
+                          beatId: beat.id,
+                          actionId: action.id,
+                        })
                       }
                     >
                       <Bell size={11} />
-                    </button>
+                    </TimelineMarker>
                   );
                 })}
               </div>
@@ -282,33 +537,47 @@ export function StagingTimeline({
               <div
                 key={`${beat.id}-interactables`}
                 className={`tl-cell ${index === scrubIndex ? "is-playhead" : ""}`}
+                data-lane="interactable"
+                data-beat-index={index}
                 style={{ gridRow: interactableRow, gridColumn: index + 2 }}
               >
                 {triggered && (
-                  <button
+                  <TimelineMarker
                     key={`${beat.id}-trigger-interactable`}
-                    type="button"
                     className={`tl-marker tl-marker-interactable is-trigger ${
                       isSelected("interactable", triggered.id)
                         ? "is-selected"
                         : ""
                     }`}
                     title={`Trigger: player uses ${triggered.name}`}
-                    onClick={() =>
+                    ariaLabel={`${triggered.name} trigger`}
+                    dragPayload={{
+                      type: "trigger-placement",
+                      id: triggered.id,
+                      sourceBeatId: beat.id,
+                    }}
+                    onStartDrag={startPlacementDrag}
+                    onEndDrag={endDrag}
+                    onSelect={() =>
                       onSelect({ kind: "interactable", id: triggered.id })
+                    }
+                    onRemove={() =>
+                      onRemovePlacement({
+                        kind: "trigger",
+                        beatId: beat.id,
+                      })
                     }
                   >
                     <Zap size={11} />
-                  </button>
+                  </TimelineMarker>
                 )}
                 {updated.map((action) => {
                   const interactable = scene.interactables.find(
                     (candidate) => candidate.id === action.targetId,
                   );
                   return (
-                    <button
+                    <TimelineMarker
                       key={action.id}
-                      type="button"
                       className={`tl-marker tl-marker-interactable ${
                         interactable &&
                         isSelected("interactable", interactable.id)
@@ -320,16 +589,35 @@ export function StagingTimeline({
                           ? interactable.name
                           : `Unknown interactable: ${action.targetId}`
                       }
-                      onClick={() =>
+                      ariaLabel={
+                        interactable
+                          ? `${interactable.name} placement`
+                          : `Unknown interactable ${action.targetId}`
+                      }
+                      dragPayload={{
+                        type: "action-placement",
+                        id: action.id,
+                        sourceBeatId: beat.id,
+                      }}
+                      onStartDrag={startPlacementDrag}
+                      onEndDrag={endDrag}
+                      onSelect={() =>
                         interactable &&
                         onSelect({
                           kind: "interactable",
                           id: interactable.id,
                         })
                       }
+                      onRemove={() =>
+                        onRemovePlacement({
+                          kind: "action",
+                          beatId: beat.id,
+                          actionId: action.id,
+                        })
+                      }
                     >
                       <MousePointerClick size={11} />
-                    </button>
+                    </TimelineMarker>
                   );
                 })}
               </div>
@@ -353,43 +641,76 @@ export function StagingTimeline({
               <div
                 key={`${beat.id}-items`}
                 className={`tl-cell ${index === scrubIndex ? "is-playhead" : ""}`}
+                data-lane="item"
+                data-beat-index={index}
                 style={{ gridRow: itemRow, gridColumn: index + 2 }}
               >
                 {triggered && (
-                  <button
+                  <TimelineMarker
                     key={`${beat.id}-trigger-item`}
-                    type="button"
                     className={`tl-marker tl-marker-item is-trigger ${
                       isSelected("item", triggered.id) ? "is-selected" : ""
                     }`}
                     title={`Trigger: Grayson uses ${triggered.name} from inventory`}
-                    onClick={() =>
+                    ariaLabel={`${triggered.name} inventory trigger`}
+                    dragPayload={{
+                      type: "trigger-placement",
+                      id: triggered.id,
+                      sourceBeatId: beat.id,
+                    }}
+                    onStartDrag={startPlacementDrag}
+                    onEndDrag={endDrag}
+                    onSelect={() =>
                       onSelect({ kind: "item", id: triggered.id })
+                    }
+                    onRemove={() =>
+                      onRemovePlacement({
+                        kind: "trigger",
+                        beatId: beat.id,
+                      })
                     }
                   >
                     <Zap size={11} />
-                  </button>
+                  </TimelineMarker>
                 )}
                 {touches.map((action) => {
                   const item = scene.items.find(
                     (candidate) => candidate.id === action.targetId,
                   );
                   return (
-                    <button
+                    <TimelineMarker
                       key={action.id}
-                      type="button"
                       className={`tl-marker tl-marker-item ${
                         item && isSelected("item", item.id) ? "is-selected" : ""
                       } ${item ? "" : "is-broken"}`}
                       title={
                         item ? item.name : `Unknown item: ${action.targetId}`
                       }
-                      onClick={() =>
+                      ariaLabel={
+                        item
+                          ? `${item.name} inventory placement`
+                          : `Unknown item ${action.targetId}`
+                      }
+                      dragPayload={{
+                        type: "action-placement",
+                        id: action.id,
+                        sourceBeatId: beat.id,
+                      }}
+                      onStartDrag={startPlacementDrag}
+                      onEndDrag={endDrag}
+                      onSelect={() =>
                         item && onSelect({ kind: "item", id: item.id })
+                      }
+                      onRemove={() =>
+                        onRemovePlacement({
+                          kind: "action",
+                          beatId: beat.id,
+                          actionId: action.id,
+                        })
                       }
                     >
                       <Package size={11} />
-                    </button>
+                    </TimelineMarker>
                   );
                 })}
               </div>
@@ -406,28 +727,15 @@ export function StagingTimeline({
                 gridRow: `1 / ${totalRows + 1}`,
                 gridColumn: index + 2,
               }}
-              onDragOver={(event) => {
-                if (!dragPayloadRef.current) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect =
-                  dragPayloadRef.current.type === "beat" ? "move" : "copy";
-                setDropColumn(index);
-              }}
-              onDragLeave={() =>
-                setDropColumn((current) => (current === index ? null : current))
-              }
-              onDrop={(event) => {
-                event.preventDefault();
-                handleDrop(index);
-              }}
             />
           ))}
         </div>
       </div>
       <p className="tl-hint">
-        Drag a beat header to reorder. Drag an NPC name or span edge onto a
-        beat to stage entrances and exits. Drag an interactable onto a beat to
-        make it the trigger. Click anything to edit it.
+        Drag an NPC’s green presence bar to change when they enter; its end
+        handles set entrance and exit precisely. Drag round NPC action markers
+        or other timeline markers to move them between beats. Hover a marker
+        and use × to unstage it.
       </p>
     </div>
   );

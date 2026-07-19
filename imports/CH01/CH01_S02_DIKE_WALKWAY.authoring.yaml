@@ -35,5 +35,24 @@ staging:
   interactables: []
   items: []
   hud_events: []
-  beats: []
+  beats:
+    - id: SCENE_BEAT_PIER_DIVER_DISAPPEARS
+      title: The man disappears from the pier
+      trigger:
+        type: begin_play
+      optional: false
+      event_thread:
+        id: EVENT_PIER_DIVER_FAMILY_PAYOUT
+        role: setup
+        note: >-
+          Grayson witnesses the registered diver disappear into the ocean; the
+          state begins biometric verification.
+      actions:
+        - id: ACTION_RECORD_PIER_DIVER
+          type: set_flag
+          target_id: FLAG_PIER_DIVER_WITNESSED
+          detail: >-
+            Record the distant witness event without turning it into player
+            agency.
+      approval: needs_discussion
 notes: ""

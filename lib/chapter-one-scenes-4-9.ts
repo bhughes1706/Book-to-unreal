@@ -864,6 +864,37 @@ export const chapterOneScenesFourToNine: SceneDraft[] = [
         durationSeconds: 0,
         status: "unreviewed",
       },
+      {
+        id: "LENS_SYSTEM_NOTIFICATION_CONGRATULATE_DIVER_FAMILY",
+        channel: "system_notification",
+        text:
+          "Registered diver status confirmed. Would you like to congratulate the beneficiary family?",
+        trigger:
+          "The Life Bracelet network confirms the pier diver’s registered death while Grayson is in the hotel bar.",
+        dismissMode: "player_dismiss",
+        durationSeconds: 0,
+        eventThreadId: "EVENT_PIER_DIVER_FAMILY_PAYOUT",
+        eventThreadRole: "callback",
+        eventThreadNote:
+          "The state converts the distant death Grayson witnessed into a polite social prompt.",
+        responses: [
+          {
+            id: "GRAYSON_RESPONSE_CONGRATULATE_FAMILY",
+            label: "Congratulate the family",
+            outcome:
+              "Send the state-authored condolence and congratulations message through the Lens.",
+            setFlag: "FLAG_DIVER_FAMILY_CONGRATULATED",
+          },
+          {
+            id: "GRAYSON_RESPONSE_DISMISS_DIVER_NOTICE",
+            label: "Dismiss",
+            outcome:
+              "Close the prompt without contacting the beneficiary family.",
+            setFlag: "FLAG_DIVER_FAMILY_NOTICE_DISMISSED",
+          },
+        ],
+        status: "needs_discussion",
+      },
     ],
     beats: [
       {
@@ -882,6 +913,24 @@ export const chapterOneScenesFourToNine: SceneDraft[] = [
           },
         ],
         status: "unreviewed",
+      },
+      {
+        id: "SCENE_BEAT_DIVER_FAMILY_NOTIFICATION",
+        title: "The state confirms the pier diver",
+        triggerType: "beat_completed",
+        triggerTarget: "BEAT_NOAH_DEPARTS",
+        optional: false,
+        actions: [
+          {
+            id: "ACTION_SHOW_DIVER_FAMILY_NOTIFICATION",
+            type: "show_hud",
+            targetId:
+              "LENS_SYSTEM_NOTIFICATION_CONGRATULATE_DIVER_FAMILY",
+            detail:
+              "Interrupt the warm bar lighting with a polite state prompt that reduces the witnessed death to a social transaction.",
+          },
+        ],
+        status: "needs_discussion",
       },
       {
         id: "BEAT_WOMAN_SITS",

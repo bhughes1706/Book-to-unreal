@@ -58,6 +58,23 @@ Open `http://127.0.0.1:3001`.
 Edits autosave in that browser's local storage. Export YAML or JSON regularly
 if you want portable backups or need to move work between browsers.
 
+### Traceable IDs and event threads
+
+ID fields offer a one-click suggestion built from ownership, resource type, and
+a short content cadence. Character lines begin with the speaker
+(`GRAYSON_DIALOGUE_…`), Grayson’s internal observations use
+`GRAYSON_MONOLOGUE_…`, Lens UI uses `LENS_<CHANNEL>_…`, inventory uses
+`GRAYSON_ITEM_…`, and world interactions use `WORLD_INTERACT_…`. Existing IDs
+remain valid; accepting a suggestion also updates beat references.
+
+Assign the same `EVENT_…` thread ID to beats and HUD events in different scenes.
+The **Event threads** tab then shows the setup, callback, choice, consequence,
+and resolution as one chapter-wide timeline.
+
+Destructive deletes open a confirmation dialog before changing the workspace.
+Use **Undo**, `⌘Z` on macOS, or `Ctrl+Z` elsewhere to restore the last workspace
+change. Normal text-field undo continues to work while typing.
+
 ## Create a chapter first pass with AI
 
 The project skill `$draft-chapter-scenes` reads a complete chapter, proposes
