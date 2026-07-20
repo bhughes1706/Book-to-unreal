@@ -1,7 +1,7 @@
 # Book to Unreal
 
-Turn novel chapters into editable game scenes, approve the adaptation, then
-export traceable YAML and normalized JSON.
+Turn novel chapters into editable Story and Layout scenes, approve each
+authoring layer, then export traceable YAML.
 
 ## Current milestone
 
@@ -13,9 +13,16 @@ The web-based **Scenework** editor provides:
 - consequence-bearing player dialogue choices;
 - a playable-staging workspace for ordered beats, NPC entrances and behavior,
   items and interactables, plus diegetic HUD/Lens events;
+- a visual Layout workspace for scene dimensions, camera intent, draggable
+  story-resource placements, movement paths, graybox geometry, placeholder
+  assets, and spatial acceptance tests;
+- separate `.authoring.yaml` and `.scene.yaml` exports in one editor;
+- authoring SHA-256 tracking, stale Layout indicators, and merge mode that
+  preserves hand-authored spatial work;
 - an explicit choice between scrolling HD-2D and static cinematic staging;
 - an adaptation ledger for reviewing every change from source;
-- browser-local autosave plus YAML and JSON downloads.
+- browser-local autosave plus portable YAML downloads and normalized authoring
+  JSON preview.
 
 The [`chapter-to-game-yaml`](chapter-to-game-yaml/) package provides:
 
@@ -26,9 +33,13 @@ The [`chapter-to-game-yaml`](chapter-to-game-yaml/) package provides:
 - a deterministic YAML-to-Unreal-JSON compiler;
 - the validated Chapter 1 production artifacts and regression suite.
 
-The author-facing scene document is intentionally separate from the Unreal
-runtime manifest. Authoring decisions are reviewed first; runtime beats and
-geometry are compiled only after a scene is approved.
+The Story document is intentionally separate from the visual Layout document.
+Story decisions are reviewed first. Layout carries approved IDs into a spatial
+blockout and records the exact hash of its upstream Story source.
+
+The unified workflow and ownership rules are documented in
+[Scenework YAML pipeline](docs/scenework-yaml-pipeline.md). This editor work
+stops at YAML; it does not change the legacy JSON compiler or add Unreal code.
 
 ## Permanent game rules
 
@@ -55,8 +66,8 @@ pnpm local
 
 Open `http://127.0.0.1:3001`.
 
-Edits autosave in that browser's local storage. Export YAML or JSON regularly
-if you want portable backups or need to move work between browsers.
+Edits autosave in that browser's local storage. Export Story and Layout YAML
+regularly if you want portable backups or need to move work between browsers.
 
 ### Traceable IDs and event threads
 
@@ -90,9 +101,26 @@ Report the scene and beat plan for my approval.
 ```
 
 Request changes directly in the chat, or approve the current plan. After
-approval, the skill writes validated scene files to `imports/<CHAPTER_ID>/`.
-Use **Import scenes** in Scenework to load them, then make cleanup changes in the
-UI.
+approval, the skill writes validated Story files to `imports/<CHAPTER_ID>/`.
+Use **Import YAML** in Scenework to load them, then make cleanup changes in
+Story.
+
+## Create a visual blockout with AI
+
+After a Story scene is approved, `$draft-scene-blockout` proposes dimensions,
+camera, player flow, resource placements, movement paths, graybox geometry, and
+placeholder assets. It explains its decisions and waits for approval before
+creating or merging `<SCENE_ID>.scene.yaml`.
+
+```text
+Use $draft-scene-blockout to propose a visual blockout for
+imports/CH02/CH02_S01_EXAMPLE.authoring.yaml.
+```
+
+Import the resulting YAML or continue editing the same scene in the **Layout**
+tab. If Story changes later, Scenework marks Layout stale. **Merge story
+changes** carries new Story bindings downstream while preserving manual
+coordinates and other spatial work.
 
 For a local production-mode build:
 

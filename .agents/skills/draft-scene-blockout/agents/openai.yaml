@@ -1,0 +1,4 @@
+interface:
+  display_name: "Draft Scene Blockout"
+  short_description: "Turn approved stories into merge-safe layouts"
+  default_prompt: "Use $draft-scene-blockout to propose or merge a visual blockout for this approved Scenework scene."

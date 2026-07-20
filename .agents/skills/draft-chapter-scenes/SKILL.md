@@ -33,6 +33,14 @@ check:
 Do not treat a source passage, author approval, satire, or player choice as an
 exception to the governing document.
 
+## Governing mechanics context
+
+At the start of every run, also read `game-guide-1-mechanics.md` completely and
+retain it as standing context. Preserve its diegetic-system rule: no
+conventional HUD, abstract meter, detached minigame, or mechanic without a body
+inside Utopia. Check every proposed interaction against the integration map and
+flag any new mechanic that does not connect to at least two existing systems.
+
 ## Locate the project
 
 Find the nearest repository root containing both:
@@ -81,13 +89,18 @@ rationale and coverage, and return to `AWAIT_APPROVAL`.
    `references/review-contract.md` completely.
 7. Draft a temporary JSON review plan matching the review contract. Keep it out
    of `imports/`; it is analysis, not an approved project artifact.
-8. Run:
+8. Trace recurring causes, callbacks, choices, and consequences across the
+   proposed scenes. Assign an `EVENT_…` thread only where the link is genuinely
+   useful for chapter-wide traceability; do not manufacture threads for
+   ordinary sequential beats.
+9. Run:
 
    ```bash
    python3 <skill-dir>/scripts/validate_plan.py <temp-ledger.json> <temp-plan.json>
    ```
 
-9. Fix every coverage, ordering, ID, or reference error before reporting.
+10. Fix every coverage, ordering, ID, thread, or reference error before
+    reporting.
 
 ## Phase 2: report and stop
 
@@ -104,6 +117,7 @@ Make the report useful for judgment:
 - List uncertainties, invented connective tissue, and proposed changes from
   source separately.
 - Include the validated coverage totals.
+- Include the event-thread map, or state that the chapter needs no threads.
 
 End with:
 
@@ -132,9 +146,13 @@ Proceed only after explicit approval of the current plan revision.
 7. Record every change to event order, character presence, motivation,
    location, or outcome under `story_changes`.
 8. Keep inventory items separate from environmental interactables.
-9. Use approved scene and beat IDs from the plan. Keep IDs stable across
+9. Apply the ID cadence from the editor contract to dialogue, monologue, HUD,
+   inventory, interactable, event-thread, and other new IDs.
+10. Copy approved event-thread IDs, roles, and notes onto the relevant beats and
+    HUD events. Keep the same thread ID across scenes.
+11. Use approved scene and beat IDs from the plan. Keep IDs stable across
    revisions.
-10. Validate the complete bundle:
+12. Validate the complete bundle:
 
     ```bash
     python3 <skill-dir>/scripts/validate_authoring.py \
@@ -142,8 +160,8 @@ Proceed only after explicit approval of the current plan revision.
       imports/<CHAPTER_ID>/*.authoring.yaml
     ```
 
-11. Fix all validation errors. Do not bypass the schema.
-12. Report created files, validation results, assumptions, and remaining author
+13. Fix all validation errors. Do not bypass the schema.
+14. Report created files, validation results, assumptions, and remaining author
     decisions. Tell the author the files are ready for import and UI cleanup.
 
 Do not generate focused runtime manifests or Unreal geometry unless separately
@@ -161,3 +179,5 @@ requested after authoring approval.
 - Preserve quiet connective material through staging or condensation when it
   carries tone, rhythm, or worldbuilding.
 - Surface uncertainty instead of resolving it silently.
+- Use event threads for traceability, not as a substitute for clear beat
+  ordering.

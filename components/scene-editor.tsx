@@ -17,6 +17,7 @@ import {
   FileText,
   GitBranch,
   Menu,
+  Map,
   MessageSquareQuote,
   MonitorPlay,
   MoveHorizontal,
@@ -48,12 +49,16 @@ import {
 } from "@/components/confirmation-dialog";
 import { IdField } from "@/components/id-field";
 import { EventThreadView } from "@/components/event-thread-view";
+import { LayoutEditor } from "@/components/layout-editor";
 import { StagingEditor } from "@/components/staging-editor";
 import type { StagingSelection } from "@/components/staging-editor";
 import type { ImportedScene } from "@/lib/authoring-import";
 import { parseAuthoringScene } from "@/lib/authoring-import";
 import { chapterSeed } from "@/lib/chapter-seed";
 import { dialogueIdSuggestion } from "@/lib/id-builder";
+import type { ImportedLayout } from "@/lib/layout-import";
+import { parseLayoutManifest } from "@/lib/layout-import";
+import { authoringSha256, layoutToYaml } from "@/lib/layout-model";
 import { buildStoryEventThreads } from "@/lib/story-events";
 import {
   actionLabels,
@@ -75,7 +80,11 @@ import type {
   SceneStatus,
   StoryChange,
 } from "@/lib/editor-types";
-import { sceneToJson, sceneToYaml } from "@/lib/scene-export";
+import {
+  sceneToJson,
+  sceneToYaml,
+  toAuthoringDocument,
+} from "@/lib/scene-export";
 
 const WORKSPACE_KEY = "scenework.workspace.v1";
 const LEGACY_KEY = "scenework.chapter.CH01.v1";
@@ -133,10 +142,11 @@ type WorkspaceTab =
   | "source"
   | "dialogue"
   | "staging"
+  | "layout"
   | "events"
   | "changes"
   | "output";
-type OutputMode = "yaml" | "json";
+type OutputMode = "authoring_yaml" | "layout_yaml" | "json";
 
 function makeId(prefix: string, value: string) {
   const slug = value
@@ -402,7 +412,10 @@ function mergeImports(chapters: ChapterDraft[], imported: ImportedScene[]) {
       chapter.scenes.push(scene);
       added += 1;
     } else {
-      chapter.scenes[index] = scene;
+      chapter.scenes[index] = {
+        ...scene,
+        layout: chapter.scenes[index].layout,
+      };
       updated += 1;
     }
   });
@@ -416,6 +429,29 @@ function mergeImports(chapters: ChapterDraft[], imported: ImportedScene[]) {
     }));
   });
   return { chapters: next, added, updated };
+}
+
+function mergeLayoutImports(
+  chapters: ChapterDraft[],
+  imported: ImportedLayout[],
+) {
+  const next = chapters.map((chapter) => ({
+    ...chapter,
+    scenes: chapter.scenes.map((scene) => ({ ...scene })),
+  }));
+  let attached = 0;
+  const missing: string[] = [];
+  imported.forEach(({ chapterId, sceneId, layout }) => {
+    const chapter = next.find((candidate) => candidate.id === chapterId);
+    const scene = chapter?.scenes.find((candidate) => candidate.id === sceneId);
+    if (!scene) {
+      missing.push(sceneId);
+      return;
+    }
+    scene.layout = layout;
+    attached += 1;
+  });
+  return { chapters: next, attached, missing };
 }
 
 function truncate(value: string, length: number) {
@@ -476,10 +512,15 @@ export function SceneEditor() {
     "CH01_S03_WALK_TO_VENUE",
   );
   const [canUndo, setCanUndo] = useState(false);
+  const [authoringHashes, setAuthoringHashes] = useState<
+    Record<string, string>
+  >({});
+  const [hashesPending, setHashesPending] = useState(true);
   const [confirmation, setConfirmation] =
     useState<ConfirmationRequest | null>(null);
   const [tab, setTab] = useState<WorkspaceTab>("source");
-  const [outputMode, setOutputMode] = useState<OutputMode>("yaml");
+  const [outputMode, setOutputMode] =
+    useState<OutputMode>("authoring_yaml");
   const [query, setQuery] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -673,6 +714,42 @@ export function SceneEditor() {
     [activeSceneId, chapter.scenes],
   );
 
+  const authoringHashInput = useMemo(
+    () =>
+      chapters
+        .flatMap((candidate) =>
+          candidate.scenes.map((scene) => [
+            scene.id,
+            JSON.stringify(toAuthoringDocument(scene)),
+          ]),
+        )
+        .map(([sceneId, document]) => `${sceneId}:${document}`)
+        .join("\n"),
+    [chapters],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setHashesPending(true);
+    void Promise.all(
+      chapters.flatMap((candidate) =>
+        candidate.scenes.map(async (scene) => [
+          scene.id,
+          await authoringSha256(scene),
+        ] as const),
+      ),
+    ).then((entries) => {
+      if (cancelled) return;
+      setAuthoringHashes(Object.fromEntries(entries));
+      setHashesPending(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // authoringHashInput excludes layout-only changes by construction.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authoringHashInput]);
+
   const filteredScenes = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return chapter.scenes;
@@ -685,6 +762,13 @@ export function SceneEditor() {
 
   const approvedCount = chapter.scenes.filter(
     (scene) => scene.status === "approved" || scene.status === "locked",
+  ).length;
+  const layoutCount = chapter.scenes.filter((scene) => scene.layout).length;
+  const staleLayoutCount = chapter.scenes.filter(
+    (scene) =>
+      scene.layout &&
+      authoringHashes[scene.id] &&
+      scene.layout.upstreamAuthoringHash !== authoringHashes[scene.id],
   ).length;
   const progress = Math.round(
     (approvedCount / Math.max(chapter.scenes.length, 1)) * 100,
@@ -844,34 +928,57 @@ export function SceneEditor() {
   const importScenes = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const imported: ImportedScene[] = [];
+    const importedLayouts: ImportedLayout[] = [];
     const failures: string[] = [];
     for (const file of Array.from(files)) {
+      const source = await file.text();
       try {
-        imported.push(parseAuthoringScene(await file.text()));
-      } catch (error) {
-        failures.push(
-          `${file.name} (${error instanceof Error ? error.message : "unreadable"})`,
-        );
+        imported.push(parseAuthoringScene(source));
+      } catch (authoringError) {
+        try {
+          importedLayouts.push(parseLayoutManifest(source));
+        } catch {
+          failures.push(
+            `${file.name} (${authoringError instanceof Error ? authoringError.message : "unreadable"})`,
+          );
+        }
       }
     }
-    if (imported.length === 0) {
+    if (imported.length === 0 && importedLayouts.length === 0) {
       setNotice(`Import failed — ${failures.join("; ")}.`);
       return;
     }
     const merged = mergeImports(chapters, imported);
-    setChapters(merged.chapters);
-    setActiveChapterId(imported[0].chapterId);
-    setActiveSceneId(imported[0].scene.id);
-    setTab("source");
+    const layoutMerged = mergeLayoutImports(
+      merged.chapters,
+      importedLayouts,
+    );
+    setChapters(layoutMerged.chapters);
+    const firstChapterId =
+      imported[0]?.chapterId ?? importedLayouts[0]?.chapterId;
+    const firstSceneId =
+      imported[0]?.scene.id ?? importedLayouts[0]?.sceneId;
+    setActiveChapterId(firstChapterId);
+    setActiveSceneId(firstSceneId);
+    setTab(imported.length > 0 ? "source" : "layout");
     setIssues(null);
     const summary = [
       merged.added > 0 ? `${merged.added} new` : "",
       merged.updated > 0 ? `${merged.updated} updated` : "",
+      layoutMerged.attached > 0
+        ? `${layoutMerged.attached} layout${layoutMerged.attached === 1 ? "" : "s"}`
+        : "",
     ]
       .filter(Boolean)
       .join(", ");
     setNotice(
-      `Imported ${imported.length} scene${imported.length === 1 ? "" : "s"} (${summary}).${
+      `Imported ${imported.length + importedLayouts.length} YAML file${
+        imported.length + importedLayouts.length === 1 ? "" : "s"
+      } (${summary}).${
+        layoutMerged.missing.length > 0
+          ? ` Layouts without matching authoring scenes: ${layoutMerged.missing.join(", ")}.`
+          : ""
+      }${
         failures.length > 0 ? ` Skipped ${failures.join("; ")}.` : ""
       }`,
     );
@@ -1357,6 +1464,167 @@ export function SceneEditor() {
       });
     });
 
+    const layout = activeScene.layout;
+    const currentAuthoringHash = authoringHashes[activeScene.id];
+    if (!layout) {
+      if (
+        activeScene.status === "approved" ||
+        activeScene.status === "locked"
+      ) {
+        push({
+          location: "Layout",
+          message:
+            "The story is approved, but this scene has no spatial layout YAML yet.",
+          tab: "layout",
+        });
+      }
+    } else {
+      if (
+        currentAuthoringHash &&
+        layout.upstreamAuthoringHash !== currentAuthoringHash
+      ) {
+        push({
+          location: "Layout · Change ripple",
+          message:
+            "The authoring YAML changed after this layout was created. Merge story changes before layout approval.",
+          tab: "layout",
+        });
+      }
+      if (layout.mergeConflicts.length > 0) {
+        push({
+          location: "Layout · Merge review",
+          message: `${layout.mergeConflicts.length} merge review item${
+            layout.mergeConflicts.length === 1 ? " remains" : "s remain"
+          } unresolved.`,
+          tab: "layout",
+        });
+      }
+      if (!layout.levelName.trim() || !layout.outputPath.trim()) {
+        push({
+          location: "Layout · Level",
+          message:
+            "The layout needs both a level name and future content output path.",
+          tab: "layout",
+        });
+      }
+      if (
+        layout.dimensions.lengthM <= 0 ||
+        layout.dimensions.widthM <= 0 ||
+        layout.dimensions.heightM <= 0
+      ) {
+        push({
+          location: "Layout · Bounds",
+          message: "Every scene dimension must be greater than zero.",
+          tab: "layout",
+        });
+      }
+      if (
+        !layout.placements.some(
+          (placement) => placement.kind === "player_start",
+        )
+      ) {
+        push({
+          location: "Layout · Placements",
+          message: "No player-start placement exists.",
+          tab: "layout",
+        });
+      }
+
+      const requiredSpatialIds = new Set([
+        ...activeScene.npcs.map((npc) => npc.id),
+        ...activeScene.interactables.map((interactable) => interactable.id),
+        ...activeScene.items
+          .filter((item) => item.initialState === "visible")
+          .map((item) => item.id),
+      ]);
+      const placedSourceIds = new Set(
+        layout.placements.map((placement) => placement.sourceId),
+      );
+      requiredSpatialIds.forEach((sourceId) => {
+        if (!placedSourceIds.has(sourceId)) {
+          push({
+            location: "Layout · Story bindings",
+            message: `${sourceId} has spatial presence in Story but no layout placement.`,
+            tab: "layout",
+          });
+        }
+      });
+
+      layout.placements.forEach((placement) => {
+        if (placement.orphaned) {
+          push({
+            location: "Layout · Story bindings",
+            message: `${placement.label} is orphaned from its Story resource.`,
+            tab: "layout",
+          });
+        }
+        if (placement.beatId && !beatIds.has(placement.beatId)) {
+          push({
+            location: "Layout · Beat bindings",
+            message: `${placement.label} points to a beat that no longer exists.`,
+            tab: "layout",
+          });
+        }
+        const activeAxis =
+          activeScene.presentationMode === "static_cinematic"
+            ? placement.yM
+            : placement.zM;
+        const activeAxisLimit =
+          activeScene.presentationMode === "static_cinematic"
+            ? layout.dimensions.widthM
+            : layout.dimensions.heightM;
+        if (
+          placement.xM < 0 ||
+          placement.xM > layout.dimensions.lengthM ||
+          activeAxis < 0 ||
+          activeAxis > activeAxisLimit
+        ) {
+          push({
+            location: "Layout · Bounds",
+            message: `${placement.label} is outside the visible scene bounds.`,
+            tab: "layout",
+          });
+        }
+      });
+
+      layout.paths.forEach((path) => {
+        if (path.points.length < 2) {
+          push({
+            location: "Layout · Paths",
+            message: `${path.id} needs at least two route points.`,
+            tab: "layout",
+          });
+        }
+        if (path.sourceId && !npcIds.has(path.sourceId)) {
+          push({
+            location: "Layout · Paths",
+            message: `${path.id} is bound to an NPC that no longer exists.`,
+            tab: "layout",
+          });
+        }
+        if (path.beatId && !beatIds.has(path.beatId)) {
+          push({
+            location: "Layout · Paths",
+            message: `${path.id} points to a beat that no longer exists.`,
+            tab: "layout",
+          });
+        }
+      });
+
+      if (
+        layout.status === "layout_approved" &&
+        activeScene.status !== "approved" &&
+        activeScene.status !== "locked"
+      ) {
+        push({
+          location: "Layout · Approval",
+          message:
+            "Layout is approved while the upstream story is still under review.",
+          tab: "layout",
+        });
+      }
+    }
+
     setIssues(found);
     setNotice(
       found.length > 0
@@ -1367,12 +1635,21 @@ export function SceneEditor() {
 
   const exportScene = (mode: OutputMode) => {
     const stem = activeScene.id;
-    if (mode === "yaml") {
+    if (mode === "authoring_yaml") {
       downloadText(
         `${stem}.authoring.yaml`,
         sceneToYaml(activeScene),
         "application/yaml",
       );
+    } else if (mode === "layout_yaml" && activeScene.layout) {
+      downloadText(
+        `${stem}.scene.yaml`,
+        layoutToYaml(activeScene, activeScene.layout),
+        "application/yaml",
+      );
+    } else if (mode === "layout_yaml") {
+      setNotice("Create this scene’s Layout before exporting scene YAML.");
+      return;
     } else {
       downloadText(
         `${stem}.normalized.json`,
@@ -1380,11 +1657,25 @@ export function SceneEditor() {
         "application/json",
       );
     }
-    setNotice(`${mode.toUpperCase()} export prepared.`);
+    setNotice(
+      `${
+        mode === "authoring_yaml"
+          ? "Story YAML"
+          : mode === "layout_yaml"
+            ? "Layout YAML"
+            : "Authoring JSON"
+      } export prepared.`,
+    );
   };
 
   const output =
-    outputMode === "yaml" ? sceneToYaml(activeScene) : sceneToJson(activeScene);
+    outputMode === "authoring_yaml"
+      ? sceneToYaml(activeScene)
+      : outputMode === "layout_yaml"
+        ? activeScene.layout
+          ? layoutToYaml(activeScene, activeScene.layout)
+          : "# Create a layout for this scene to preview its .scene.yaml."
+        : sceneToJson(activeScene);
   const stagingReviewed =
     activeScene.beats.length > 0 &&
     [
@@ -1462,10 +1753,10 @@ export function SceneEditor() {
           </button>
           <button
             className="button button-primary"
-            onClick={() => exportScene("yaml")}
+            onClick={() => exportScene("authoring_yaml")}
           >
             <Download size={16} />
-            <span className="desktop-label">Export YAML</span>
+            <span className="desktop-label">Export story YAML</span>
           </button>
           <button
             className="icon-button mobile-only"
@@ -1501,6 +1792,23 @@ export function SceneEditor() {
                   {chapters.map((candidate, index) => (
                     <option key={candidate.id} value={candidate.id}>
                       {String(index + 1).padStart(2, "0")} · {candidate.title}
+                      {candidate.scenes.filter(
+                        (scene) =>
+                          scene.layout &&
+                          authoringHashes[scene.id] &&
+                          scene.layout.upstreamAuthoringHash !==
+                            authoringHashes[scene.id],
+                      ).length > 0
+                        ? ` · ${
+                            candidate.scenes.filter(
+                              (scene) =>
+                                scene.layout &&
+                                authoringHashes[scene.id] &&
+                                scene.layout.upstreamAuthoringHash !==
+                                  authoringHashes[scene.id],
+                            ).length
+                          } stale`
+                        : ""}
                     </option>
                   ))}
                 </select>
@@ -1539,6 +1847,12 @@ export function SceneEditor() {
           <div className="chapter-meta">
             <span>{chapter.scenes.length} scenes</span>
             <span>{approvedCount} approved</span>
+            <span>{layoutCount} layouts</span>
+            {staleLayoutCount > 0 && (
+              <span className="chapter-stale-count">
+                {staleLayoutCount} stale
+              </span>
+            )}
           </div>
           <div className="progress-track" aria-label={`${progress}% approved`}>
             <span style={{ width: `${progress}%` }} />
@@ -1573,6 +1887,26 @@ export function SceneEditor() {
                     : "Static cinematic"}
                 </small>
               </span>
+              {scene.layout && (
+                <span
+                  className={`scene-layout-state ${
+                    authoringHashes[scene.id] &&
+                    scene.layout.upstreamAuthoringHash !==
+                      authoringHashes[scene.id]
+                      ? "is-stale"
+                      : "is-current"
+                  }`}
+                  title={
+                    authoringHashes[scene.id] &&
+                    scene.layout.upstreamAuthoringHash !==
+                      authoringHashes[scene.id]
+                      ? "Layout is stale"
+                      : "Layout exists"
+                  }
+                >
+                  <Map size={11} />
+                </span>
+              )}
               <span className={`status-icon status-${scene.status}`}>
                 <StatusDot status={scene.status} />
               </span>
@@ -1595,13 +1929,13 @@ export function SceneEditor() {
               onClick={() => importInputRef.current?.click()}
             >
               <Upload size={15} />
-              Import scenes
+              Import YAML
             </button>
           </div>
           <input
             ref={importInputRef}
             type="file"
-            accept=".yaml,.yml,.json"
+            accept=".yaml,.yml"
             multiple
             hidden
             onChange={(event) => {
@@ -1663,6 +1997,7 @@ export function SceneEditor() {
               ["source", "Source", FileText],
               ["dialogue", "Dialogue", MessageSquareQuote],
               ["staging", "Staging", Clapperboard],
+              ["layout", "Layout", Map],
               ["events", "Event threads", Network],
               ["changes", "Story changes", GitBranch],
               ["output", "Output", FileJson2],
@@ -1682,6 +2017,23 @@ export function SceneEditor() {
               )}
               {value === "staging" && activeScene.beats.length > 0 && (
                 <span className="tab-count">{activeScene.beats.length}</span>
+              )}
+              {value === "layout" && activeScene.layout && (
+                <span
+                  className={`tab-count ${
+                    authoringHashes[activeScene.id] &&
+                    activeScene.layout.upstreamAuthoringHash !==
+                      authoringHashes[activeScene.id]
+                      ? "is-stale"
+                      : ""
+                  }`}
+                >
+                  {authoringHashes[activeScene.id] &&
+                  activeScene.layout.upstreamAuthoringHash !==
+                    authoringHashes[activeScene.id]
+                    ? "!"
+                    : "1"}
+                </span>
               )}
               {value === "events" && eventThreads.length > 0 && (
                 <span className="tab-count">{eventThreads.length}</span>
@@ -2139,6 +2491,19 @@ export function SceneEditor() {
             />
           )}
 
+          {tab === "layout" && (
+            <LayoutEditor
+              scene={activeScene}
+              authoringHash={authoringHashes[activeScene.id] || ""}
+              hashPending={
+                hashesPending && !authoringHashes[activeScene.id]
+              }
+              onChange={(layout) => updateScene({ layout })}
+              onNotice={setNotice}
+              onRequestConfirmation={requestConfirmation}
+            />
+          )}
+
           {tab === "events" && (
             <EventThreadView
               chapter={chapter}
@@ -2244,16 +2609,26 @@ export function SceneEditor() {
                 <div className="output-actions">
                   <div className="segmented-control">
                     <button
-                      className={outputMode === "yaml" ? "is-active" : ""}
-                      onClick={() => setOutputMode("yaml")}
+                      className={
+                        outputMode === "authoring_yaml" ? "is-active" : ""
+                      }
+                      onClick={() => setOutputMode("authoring_yaml")}
                     >
-                      YAML
+                      Story YAML
+                    </button>
+                    <button
+                      className={
+                        outputMode === "layout_yaml" ? "is-active" : ""
+                      }
+                      onClick={() => setOutputMode("layout_yaml")}
+                    >
+                      Layout YAML
                     </button>
                     <button
                       className={outputMode === "json" ? "is-active" : ""}
                       onClick={() => setOutputMode("json")}
                     >
-                      JSON
+                      Authoring JSON
                     </button>
                   </div>
                   <button
@@ -2270,9 +2645,10 @@ export function SceneEditor() {
               </pre>
               <div className="output-note">
                 <ShieldCheck size={16} />
-                Staging captures author intent. The runtime compiler still owns
-                exact geometry, assets, coordinates, and executable Unreal
-                actions.
+                Story YAML owns narrative intent; Layout YAML owns reviewed
+                dimensions, coordinates, paths, cameras, and placeholder assets.
+                Authoring JSON is only a normalized preview. This editor does
+                not compile or write Unreal content.
               </div>
             </section>
           )}

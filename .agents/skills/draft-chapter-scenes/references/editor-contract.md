@@ -27,7 +27,9 @@ Do not create runtime manifests or compiled Unreal JSON in this workflow.
 ## Dialogue
 
 - Preserve source text exactly.
-- Use stable `DIALOGUE_` IDs.
+- Use stable speaker-owned IDs:
+  - `<SPEAKER>_DIALOGUE_<CADENCE>` for spoken lines;
+  - `GRAYSON_MONOLOGUE_<CADENCE>` for Grayson's internal narration.
 - Set extracted source lines to `source_locked: true`.
 - Set proposed connective lines to `source_locked: false`.
 - Do not invent dialogue unless it is necessary to express an approved proposal.
@@ -49,6 +51,32 @@ Use distinct resource categories:
 
 Do not classify a door, chair, drink glass, window, scenery, or traversal point
 as an inventory item. Do not make every mentioned object interactive.
+
+## ID cadence
+
+IDs are opaque to presentation but essential for traceability. Use uppercase
+snake case and keep accepted IDs stable across revisions.
+
+- dialogue: `<SPEAKER>_DIALOGUE_<CADENCE>`;
+- Grayson internal text: `GRAYSON_MONOLOGUE_<CADENCE>`;
+- Lens/HUD: `LENS_<CHANNEL>_<CADENCE>`;
+- Grayson inventory: `GRAYSON_ITEM_<CADENCE>`;
+- world interaction: `WORLD_INTERACT_<CADENCE>`;
+- NPC: `NPC_<NAME_OR_ROLE>`;
+- beat: `BEAT_<SCENE_CADENCE>`;
+- cross-scene thread: `EVENT_<CADENCE>`.
+
+Cadence is a short semantic phrase, not a serial number alone. Do not rename an
+existing valid ID merely to improve style.
+
+## Event threads
+
+Use the same `EVENT_…` ID on beats and HUD events that form a meaningful
+cross-scene setup, escalation, callback, choice, consequence, or resolution.
+Assign the closest supported role and a short note explaining the link.
+
+Do not thread ordinary chronology. A thread should answer, “What cause or
+promise is this occurrence carrying across scene boundaries?”
 
 ## Beat references
 

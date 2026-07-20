@@ -202,6 +202,99 @@ export interface SceneBeat {
   status: ReviewStatus;
 }
 
+export type LayoutStatus =
+  | "draft"
+  | "needs_review"
+  | "layout_approved";
+
+export type LayoutCameraMode =
+  | "side_view_perspective"
+  | "orthographic"
+  | "fixed_cinematic";
+
+export type LayoutPlacementKind =
+  | "player_start"
+  | "npc"
+  | "interactable"
+  | "item"
+  | "transition"
+  | "camera"
+  | "audio"
+  | "custom";
+
+export interface LayoutPoint {
+  xM: number;
+  yM: number;
+  zM: number;
+}
+
+export interface LayoutDimensions {
+  lengthM: number;
+  widthM: number;
+  heightM: number;
+}
+
+export interface LayoutCamera {
+  mode: LayoutCameraMode;
+  horizontalTracking: boolean;
+  verticalTracking: boolean;
+  perspectiveFovDegrees: number;
+  orthographicWidthM: number;
+  framingNotes: string;
+}
+
+export interface LayoutPlacement extends LayoutPoint {
+  id: string;
+  sourceId: string;
+  label: string;
+  kind: LayoutPlacementKind;
+  beatId: string;
+  radiusM: number;
+  widthM: number;
+  heightM: number;
+  assetId: string;
+  notes: string;
+  orphaned?: boolean;
+}
+
+export interface LayoutEnvironmentPiece extends LayoutPoint {
+  id: string;
+  label: string;
+  kind: "floor" | "wall" | "backdrop" | "prop" | "volume";
+  assetId: string;
+  dimensions: LayoutDimensions;
+  notes: string;
+}
+
+export interface LayoutPath {
+  id: string;
+  sourceId: string;
+  beatId: string;
+  speedMps: number;
+  points: LayoutPoint[];
+  notes: string;
+}
+
+export interface SceneLayoutDraft {
+  status: LayoutStatus;
+  upstreamAuthoringHash: string;
+  mergeMode: "create" | "merge" | "import";
+  sourceManifestPath: string;
+  levelName: string;
+  outputPath: string;
+  environmentKitIds: string[];
+  dimensions: LayoutDimensions;
+  camera: LayoutCamera;
+  placements: LayoutPlacement[];
+  environmentPieces: LayoutEnvironmentPiece[];
+  paths: LayoutPath[];
+  grayboxAssets: string[];
+  artReplacementAssets: string[];
+  acceptanceTests: string[];
+  mergeConflicts: string[];
+  notes: string;
+}
+
 export interface SceneDraft {
   id: string;
   order: number;
@@ -218,6 +311,7 @@ export interface SceneDraft {
   interactables: SceneInteractable[];
   hudEvents: HudEvent[];
   beats: SceneBeat[];
+  layout?: SceneLayoutDraft;
   notes: string;
 }
 

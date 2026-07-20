@@ -14,6 +14,15 @@ ID_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 PRESENTATION_MODES = {"scrolling_hd2d", "static_cinematic"}
 DISPOSITIONS = {"direct", "condensed", "omitted"}
 BASES = {"source", "inference", "proposal"}
+EVENT_THREAD_ROLES = {
+    "setup",
+    "escalation",
+    "callback",
+    "choice",
+    "consequence",
+    "resolution",
+    "reference",
+}
 
 
 def load_object(path: Path) -> dict[str, Any]:
@@ -77,6 +86,7 @@ def validate(ledger: dict[str, Any], plan: dict[str, Any]) -> list[str]:
 
     scene_ids: set[str] = set()
     beat_ids: set[str] = set()
+    beat_scene: dict[str, str] = {}
     scene_paragraphs: dict[str, list[str]] = {}
     previous_end = -1
     for scene_index, scene_value in enumerate(scenes):
@@ -135,6 +145,7 @@ def validate(ledger: dict[str, Any], plan: dict[str, Any]) -> list[str]:
             if beat_id in beat_ids:
                 errors.append(f"{beat_path}.id: duplicate ID {beat_id}")
             beat_ids.add(beat_id)
+            beat_scene[beat_id] = scene_id
             if beat_id and not ID_RE.fullmatch(beat_id):
                 errors.append(f"{beat_path}.id: expected uppercase snake-case ID")
             for key in ("title", "player_experience", "beat_rationale"):
@@ -212,6 +223,65 @@ def validate(ledger: dict[str, Any], plan: dict[str, Any]) -> list[str]:
                 required_text(change, key, path, errors)
             if change.get("approval") != "needs_discussion":
                 errors.append(f"{path}.approval: expected needs_discussion")
+
+    event_threads = plan.get("event_threads")
+    if not isinstance(event_threads, list):
+        errors.append("$.event_threads: expected an array")
+    else:
+        thread_ids: set[str] = set()
+        for thread_index, thread_value in enumerate(event_threads):
+            path = f"$.event_threads[{thread_index}]"
+            if not isinstance(thread_value, dict):
+                errors.append(f"{path}: expected an object")
+                continue
+            thread = thread_value
+            thread_id = required_text(thread, "id", path, errors)
+            if thread_id in thread_ids:
+                errors.append(f"{path}.id: duplicate ID {thread_id}")
+            thread_ids.add(thread_id)
+            if thread_id and (
+                not ID_RE.fullmatch(thread_id) or not thread_id.startswith("EVENT_")
+            ):
+                errors.append(f"{path}.id: expected uppercase EVENT_* ID")
+            required_text(thread, "title", path, errors)
+            required_text(thread, "throughline", path, errors)
+            occurrences = thread.get("occurrences")
+            if not isinstance(occurrences, list) or not occurrences:
+                errors.append(f"{path}.occurrences: expected at least one occurrence")
+                continue
+            for occurrence_index, occurrence_value in enumerate(occurrences):
+                occurrence_path = f"{path}.occurrences[{occurrence_index}]"
+                if not isinstance(occurrence_value, dict):
+                    errors.append(f"{occurrence_path}: expected an object")
+                    continue
+                occurrence = occurrence_value
+                scene_id = required_text(
+                    occurrence, "scene_id", occurrence_path, errors
+                )
+                if scene_id and scene_id not in scene_ids:
+                    errors.append(
+                        f"{occurrence_path}.scene_id: unknown scene {scene_id}"
+                    )
+                beat_id = occurrence.get("beat_id")
+                if beat_id is not None:
+                    if not isinstance(beat_id, str) or not beat_id.strip():
+                        errors.append(
+                            f"{occurrence_path}.beat_id: expected non-empty text"
+                        )
+                    elif beat_id not in beat_ids:
+                        errors.append(
+                            f"{occurrence_path}.beat_id: unknown beat {beat_id}"
+                        )
+                    elif beat_scene.get(beat_id) != scene_id:
+                        errors.append(
+                            f"{occurrence_path}.beat_id: beat belongs to "
+                            f"{beat_scene.get(beat_id)}, not {scene_id}"
+                        )
+                if occurrence.get("role") not in EVENT_THREAD_ROLES:
+                    errors.append(
+                        f"{occurrence_path}.role: unsupported event-thread role"
+                    )
+                required_text(occurrence, "note", occurrence_path, errors)
 
     unresolved_questions = plan.get("unresolved_questions")
     if not isinstance(unresolved_questions, list) or not all(

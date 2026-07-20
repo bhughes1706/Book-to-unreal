@@ -61,6 +61,21 @@ Use this structure:
       "approval": "needs_discussion"
     }
   ],
+  "event_threads": [
+    {
+      "id": "EVENT_EXAMPLE_CALLBACK",
+      "title": "Example callback",
+      "throughline": "What cause, promise, or consequence crosses scenes",
+      "occurrences": [
+        {
+          "scene_id": "CH02_S01_EXAMPLE",
+          "beat_id": "BEAT_EXAMPLE",
+          "role": "setup",
+          "note": "What this occurrence contributes"
+        }
+      ]
+    }
+  ],
   "unresolved_questions": ["Question requiring author judgment"]
 }
 ```
@@ -76,6 +91,10 @@ Require:
 - `disposition` equal to `direct`, `condensed`, or `omitted`;
 - a null or absent `scene_id` only for omitted material;
 - an explicit proposed-change entry for altered canon.
+- stable `EVENT_…` IDs and valid scene/beat references for every event-thread
+  occurrence;
+- event-thread roles equal to `setup`, `escalation`, `callback`, `choice`,
+  `consequence`, `resolution`, or `reference`.
 
 ## Chat report
 
@@ -108,6 +127,12 @@ there are none.
 List staging inferences and deliberate changes separately. Include canonical
 source behavior, proposal, rationale, and approval need. Write `None` when
 there are none.
+
+### Event thread map
+
+For each cross-scene thread, state its ID, throughline, and ordered occurrences
+with scene, beat, role, and purpose. Write `None` when the chapter needs no
+cross-scene thread.
 
 ### Questions for approval
 
