@@ -2,7 +2,7 @@
 
 Read the current JSON Schema before building:
 
-`chapter-to-game-yaml/schemas/scene_authoring.schema.json`
+`chapter-to-game-yaml/novel_manifest/schemas/scene_authoring.schema.json`
 
 Treat the schema as authoritative when it differs from this summary.
 
@@ -10,7 +10,7 @@ Treat the schema as authoritative when it differs from this summary.
 
 Create one YAML document per scene:
 
-`imports/<CHAPTER_ID>/<SCENE_ID>.authoring.yaml`
+`imports/<BOOK_SLUG>/<CHAPTER_ID>/<SCENE_ID>.authoring.yaml`
 
 Use:
 

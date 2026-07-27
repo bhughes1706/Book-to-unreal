@@ -1,15 +1,23 @@
 ---
 name: chapter-to-game-yaml
-description: Convert novel chapter text or DOCX files into traceable, production-oriented game YAML manifests, validate chapter and focused-scene manifests, and compile approved focused scenes into deterministic Unreal-facing JSON. Use when Codex needs to extract canon and adaptation proposals from a book chapter, segment a chapter into playable scenes, preserve source anchors and author directives, prepare a scene for Unreal automation, or diagnose chapter/scene manifest validation errors.
+description: Convert novel chapter text or DOCX files into traceable, production-oriented game YAML manifests, validate chapter and focused-scene manifests, and compile approved focused scenes into deterministic engine-targeted JSON (Unreal, Godot, or Unity). Use when Codex needs to extract canon and adaptation proposals from a book chapter, segment a chapter into playable scenes, preserve source anchors and author directives, prepare a scene for engine automation, or diagnose chapter/scene manifest validation errors.
 ---
 
 # Chapter → Game YAML
+
+**Superseded for chapter extraction.** For turning chapter prose into a
+reviewable scene plan and Story YAML, use `$draft-chapter-scenes` instead,
+which writes to `imports/<BOOK_SLUG>/<CHAPTER_ID>/` — the single on-disk home for a book's
+artifacts. This package's validator and compiler (`novel_manifest/`,
+`tools/novel_manifest.py`) remain the authoring-schema and focused-scene
+compilation tooling; point them at `imports/<BOOK_SLUG>/<CHAPTER_ID>/` files, not the
+`chapters/<ID>/` layout described below, which this package no longer creates.
 
 ## Purpose
 
 Convert one novel chapter into a traceable, production-oriented YAML manifest for a narrative game. The manifest must preserve what is canonical in the source while keeping game-design proposals explicitly separate.
 
-This skill is designed to be repeated chapter by chapter and later invoked from an editor agent, Unreal MCP tool, CLI, or CI pipeline.
+This skill is designed to be repeated chapter by chapter and later invoked from an editor agent, engine MCP tool, CLI, or CI pipeline.
 
 ## Inputs
 
@@ -29,15 +37,19 @@ Optional:
 
 Return exactly one YAML document conforming to:
 
-`schemas/chapter_manifest.schema.json`
+`novel_manifest/schemas/chapter_manifest.schema.json`
 
 Chapter schema version in this package: `0.1.0`. Focused scene schema version: `0.2.0`.
 
 Do not wrap the YAML in Markdown fences when the output will be consumed by a tool.
 
-## Output layout
+## Output layout (historical)
 
-Store production artifacts by stable chapter ID:
+This package previously stored production artifacts under a `chapters/<ID>/`
+tree at its own root, mirroring the source, focused-scene, and compiled-output
+split shown below. That layout is retired; do not recreate it. Current work
+belongs under `imports/<BOOK_SLUG>/<CHAPTER_ID>/` at the repository root instead — see the
+superseded-workflow note above.
 
 ```text
 chapters/
@@ -51,8 +63,6 @@ chapters/
     └── compiled/
         └── CH01_S01_DikeBeach.compiled.json
 ```
-
-Keep focused scenes in `scenes/`, compiled Unreal-facing data in `compiled/`, and source extraction artifacts in `source/`. Resolve each focused scene's `source_manifest` relative to the scene file, such as `../CH01.manifest.yaml`.
 
 ## Non-negotiable rules
 
@@ -209,7 +219,7 @@ changes_from_source:
 
 ## Output quality bar
 
-A good manifest should allow another developer—or an Unreal editor tool—to answer:
+A good manifest should allow another developer—or an engine editor tool—to answer:
 
 - What happens?
 - What is canon?
@@ -244,7 +254,7 @@ When a project defines a primary in-world interface such as the Lens:
 
 ## Scene authoring
 
-Use `schemas/scene_authoring.schema.json` for the author-facing scene editor. Keep this document focused on decisions an author can review:
+Use `novel_manifest/schemas/scene_authoring.schema.json` for the author-facing scene editor. Keep this document focused on decisions an author can review:
 
 - exact source excerpts and source-locked dialogue
 - proposed dialogue kept visibly separate from source text
@@ -257,7 +267,7 @@ Treat the chapter manifest as the ordered collection of scenes. Do not add Unrea
 
 ## Focused scene compilation
 
-After an author approves a chapter scene, create a focused scene YAML conforming to `schemas/scene_manifest.schema.json`. Preserve creative constraints and approved changes at the top level, and put only machine-executable setup under `runtime`.
+After an author approves a chapter scene, create a focused scene YAML conforming to `novel_manifest/schemas/scene_manifest.schema.json`. Preserve creative constraints and approved changes at the top level, and put only machine-executable setup under `runtime`. Resolve `source_manifest` relative to the scene file's own directory, such as `../CH01.manifest.yaml`, so the scene and its chapter manifest can move together.
 
 The runtime section must define:
 
@@ -272,7 +282,10 @@ Validate and compile with:
 
 ```bash
 python tools/novel_manifest.py validate path/to/scene.yaml
-python tools/novel_manifest.py compile path/to/scene.yaml --output path/to/scene.compiled.json
+# --target {auto,unreal,godot,unity}; auto reads design.engine, else unreal.
+python tools/novel_manifest.py compile path/to/scene.yaml --target auto --output path/to/scene.compiled.json
 ```
 
-Do not let an AI agent bypass the schema by directly constructing arbitrary Unreal actors. The compiled JSON is the approved automation boundary.
+The engine target controls only units, axis convention, and unit-suffixed field names; the source YAML stays engine-neutral (meters), and the same source hashes identically for every engine. The per-book engine is chosen in the Scenework editor and recorded as `design.engine`.
+
+Do not let an AI agent bypass the schema by directly constructing arbitrary engine actors. The compiled JSON is the approved automation boundary.

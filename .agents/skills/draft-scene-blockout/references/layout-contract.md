@@ -12,6 +12,9 @@ For each scene:
 - `<SCENE_ID>.scene.yaml` owns dimensions, camera intent, graybox geometry,
   placements, movement paths, placeholder assets, and spatial acceptance tests.
 
+Both files for a scene live together at
+`imports/<BOOK_SLUG>/<CHAPTER_ID>/`.
+
 Never copy a layout value back into Story. Never rewrite a story value from
 Layout.
 
@@ -25,7 +28,7 @@ kind: scene_manifest
 chapter_id: CH01
 scene_id: CH01_S01_EXAMPLE
 source_authoring:
-  path: imports/CH01/CH01_S01_EXAMPLE.authoring.yaml
+  path: imports/buzzing-electric/CH01/CH01_S01_EXAMPLE.authoring.yaml
   sha256: <64 lowercase hex characters>
 source_manifest: ../CH01.manifest.yaml
 status: needs_review
@@ -51,6 +54,14 @@ serialize compact JSON as UTF-8, and SHA-256 those bytes. Use the bundled
 ## Design
 
 `design.presentation_mode` mirrors Story and remains story-owned.
+
+`design.engine` is the optional compile target (`unreal`, `godot`, or `unity`).
+It is a per-book decision owned by the editor, not by Layout. In create mode,
+omit it — the compiler defaults to `unreal` and the editor stamps the book's
+engine on export. In merge mode, treat any existing `design.engine` as a
+preserved, layout-adjacent value: carry it forward unchanged. Never invent,
+change, or drop it; a wiped engine silently reverts a Godot or Unity book to
+Unreal units and axes.
 
 `design.dimensions_m` contains positive `length`, `width`, and `height`.
 
@@ -100,6 +111,7 @@ Merge mode must:
 
 - carry current story-owned bindings;
 - preserve layout-owned coordinates and visual work;
+- preserve an existing `design.engine` set by the editor;
 - add new spatial story resources;
 - retain removed resources as orphans;
 - flag missing beats, missing resources, and ambiguous rebinding;

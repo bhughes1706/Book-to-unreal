@@ -56,7 +56,7 @@ Every Layout document records:
 
 ```yaml
 source_authoring:
-  path: imports/CH01/CH01_S01_EXAMPLE.authoring.yaml
+  path: imports/buzzing-electric/CH01/CH01_S01_EXAMPLE.authoring.yaml
   sha256: <canonical authoring SHA-256>
 ```
 
@@ -90,6 +90,19 @@ existing Layout YAML, proposes the visual blockout and merge report, and stops
 before file creation. After approval, it creates or merges Layout YAML.
 
 Neither skill may mark its generated decisions approved for the author.
+
+## Deleting a chapter or a book
+
+Scenework's browser storage and a book's exported files are two separate
+things by design. **Delete book** in the editor clears that book from browser
+localStorage only; it has no filesystem access and never touches disk. A
+book's actual portable artifacts — Story and Layout YAML alike, for every
+chapter — live in exactly one place, `imports/<BOOK_SLUG>/<CHAPTER_ID>/`, so
+removing them from disk is a single, explicit, separate step:
+`python3 scripts/delete_chapter.py <BOOK_SLUG> <CHAPTER_ID>` for one chapter,
+or `python3 scripts/delete_chapter.py <BOOK_SLUG>` for the whole book. Nothing
+else in the repository should hold chapter-scoped authoring or layout files; a
+second location is a sign something wrote to the wrong place.
 
 ## Scale across 36 chapters
 

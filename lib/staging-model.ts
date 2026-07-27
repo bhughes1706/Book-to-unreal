@@ -119,6 +119,12 @@ export type ResourceKind =
   | "dialogue"
   | "beat";
 
+/** A selected staging resource, used to focus the staging editor on it. */
+export interface StagingSelection {
+  kind: "beat" | "npc" | "interactable" | "item" | "hud";
+  id: string;
+}
+
 export interface CatalogEntry {
   id: string;
   kind: ResourceKind;
@@ -442,6 +448,48 @@ export function backReferences(
     }
   });
   return references;
+}
+
+/**
+ * Rewrite every beat trigger target and action target that points at `fromId`
+ * so it points at `toId`. Used when a resource's stable ID is renamed. Both
+ * trigger targets and action targets are rewritten regardless of resource kind:
+ * a stale ID can only ever match the one resource being renamed, so rewriting
+ * both is always safe and keeps item/dialogue/interactable renames consistent.
+ */
+export function renameBeatReferences(
+  beats: SceneBeat[],
+  fromId: string,
+  toId: string,
+): SceneBeat[] {
+  return beats.map((beat) => ({
+    ...beat,
+    triggerTarget: beat.triggerTarget === fromId ? toId : beat.triggerTarget,
+    actions: beat.actions.map((action) => ({
+      ...action,
+      targetId: action.targetId === fromId ? toId : action.targetId,
+    })),
+  }));
+}
+
+/**
+ * Remove a resource from every beat: any trigger that fires on it reverts to
+ * begin_play, and any action targeting it is dropped. Used when a resource is
+ * deleted so no beat is left pointing at a resource that no longer exists.
+ */
+export function removeResourceFromBeats(
+  beats: SceneBeat[],
+  resourceId: string,
+): SceneBeat[] {
+  return beats.map((beat) => {
+    const triggersOnResource = beat.triggerTarget === resourceId;
+    return {
+      ...beat,
+      triggerType: triggersOnResource ? "begin_play" : beat.triggerType,
+      triggerTarget: triggersOnResource ? "" : beat.triggerTarget,
+      actions: beat.actions.filter((action) => action.targetId !== resourceId),
+    };
+  });
 }
 
 export type StagingDragPayload =

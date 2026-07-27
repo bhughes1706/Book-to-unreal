@@ -6,6 +6,10 @@ export type SceneStatus =
 
 export type PresentationMode = "scrolling_hd2d" | "static_cinematic";
 
+// Engine the compiler targets. Recorded on export so `novel-manifest compile`
+// applies the right units/axes/naming. The neutral authoring data is unchanged.
+export type EngineTarget = "unreal" | "godot" | "unity";
+
 export type ReviewStatus =
   | "unreviewed"
   | "approved"
@@ -320,4 +324,13 @@ export interface ChapterDraft {
   title: string;
   sourceFilename: string;
   scenes: SceneDraft[];
+}
+
+// A book. Chapters live inside a project so the workspace can hold several
+// books and delete them independently. The compile engine target is per-book.
+export interface ProjectDraft {
+  id: string;
+  title: string;
+  targetEngine: EngineTarget;
+  chapters: ChapterDraft[];
 }

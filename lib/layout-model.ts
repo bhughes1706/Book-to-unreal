@@ -1,6 +1,7 @@
 import YAML from "yaml";
 
 import type {
+  EngineTarget,
   LayoutEnvironmentPiece,
   LayoutPlacement,
   LayoutPoint,
@@ -8,6 +9,22 @@ import type {
   SceneLayoutDraft,
 } from "./editor-types";
 import { toAuthoringDocument } from "./scene-export";
+
+/**
+ * True when a scene has a layout whose recorded upstream hash no longer matches
+ * the scene's current authoring hash — i.e. the story changed after the layout
+ * was created and the layout needs a merge. Returns false while the hash is
+ * still pending (unknown), so nothing is flagged stale before hashing finishes.
+ */
+export function isLayoutStale(
+  scene: SceneDraft,
+  authoringHashes: Record<string, string>,
+): boolean {
+  const hash = authoringHashes[scene.id];
+  return Boolean(
+    scene.layout && hash && scene.layout.upstreamAuthoringHash !== hash,
+  );
+}
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -266,7 +283,11 @@ function pointDocument(point: LayoutPoint) {
   return [point.xM, point.yM, point.zM];
 }
 
-export function toLayoutManifest(scene: SceneDraft, layout: SceneLayoutDraft) {
+export function toLayoutManifest(
+  scene: SceneDraft,
+  layout: SceneLayoutDraft,
+  engine: EngineTarget = "unreal",
+) {
   const eventThreadIds = [
     ...scene.beats.map((beat) => beat.eventThreadId),
     ...scene.hudEvents.map((event) => event.eventThreadId),
@@ -290,6 +311,7 @@ export function toLayoutManifest(scene: SceneDraft, layout: SceneLayoutDraft) {
       unresolved: layout.mergeConflicts,
     },
     design: {
+      engine,
       presentation_mode: scene.presentationMode,
       dimensions_m: {
         length: layout.dimensions.lengthM,
@@ -366,6 +388,12 @@ export function toLayoutManifest(scene: SceneDraft, layout: SceneLayoutDraft) {
   };
 }
 
-export function layoutToYaml(scene: SceneDraft, layout: SceneLayoutDraft) {
-  return YAML.stringify(toLayoutManifest(scene, layout), { lineWidth: 96 });
+export function layoutToYaml(
+  scene: SceneDraft,
+  layout: SceneLayoutDraft,
+  engine: EngineTarget = "unreal",
+) {
+  return YAML.stringify(toLayoutManifest(scene, layout, engine), {
+    lineWidth: 96,
+  });
 }

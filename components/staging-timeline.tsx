@@ -13,7 +13,7 @@ import {
 import type { DragEvent, MutableRefObject, ReactNode } from "react";
 import { useRef, useState } from "react";
 
-import type { SceneDraft } from "@/lib/editor-types";
+import type { BeatAction, SceneBeat, SceneDraft } from "@/lib/editor-types";
 import type {
   StagingDragPayload,
   TimelinePlacement,
@@ -83,6 +83,177 @@ function TimelineMarker({
         <X size={9} />
       </button>
     </div>
+  );
+}
+
+type LaneIcon = typeof Bell;
+
+/**
+ * Describes one resource lane on the timeline (HUD, interactables, inventory).
+ * `findResource` returns the display label of the target when it still exists —
+ * used both to render the marker and to tell a live placement from a broken one
+ * (an empty label still counts as present, so blank HUD text is not "broken").
+ */
+interface ResourceLaneConfig {
+  key: "hud" | "interactable" | "item";
+  label: string;
+  row: number;
+  laneIcon: LaneIcon;
+  markerIcon: LaneIcon;
+  markerClass: string;
+  actionMatches: (action: BeatAction) => boolean;
+  findResource: (id: string) => { label: string } | undefined;
+  actionTitle: (label: string) => string;
+  actionAria: (label: string) => string;
+  unknownTitle: (id: string) => string;
+  unknownAria: (id: string) => string;
+  trigger?: {
+    matches: (beat: SceneBeat) => boolean;
+    title: (label: string) => string;
+    aria: (label: string) => string;
+    unknownTitle: (id: string) => string;
+    unknownAria: (id: string) => string;
+  };
+}
+
+function ResourceLane({
+  config,
+  beats,
+  scrubIndex,
+  isSelected,
+  onSelect,
+  onRemovePlacement,
+  onStartPlacementDrag,
+  onEndDrag,
+}: {
+  config: ResourceLaneConfig;
+  beats: SceneBeat[];
+  scrubIndex: number;
+  isSelected: (kind: StagingSelection["kind"], id: string) => boolean;
+  onSelect: (selection: StagingSelection) => void;
+  onRemovePlacement: (placement: TimelinePlacement) => void;
+  onStartPlacementDrag: (
+    payload: StagingDragPayload,
+    event: DragEvent<HTMLButtonElement>,
+  ) => void;
+  onEndDrag: () => void;
+}) {
+  const {
+    key,
+    label,
+    row,
+    laneIcon: LaneIcon,
+    markerIcon: MarkerIcon,
+    markerClass,
+    actionMatches,
+    findResource,
+    trigger,
+  } = config;
+  return (
+    <>
+      <div
+        className="tl-lane-label is-static"
+        style={{ gridRow: row, gridColumn: 1 }}
+      >
+        <LaneIcon size={13} />
+        <span>{label}</span>
+      </div>
+      {beats.map((beat, index) => {
+        const actions = beat.actions.filter(actionMatches);
+        const triggerId =
+          trigger && trigger.matches(beat) ? beat.triggerTarget : "";
+        const triggerResource = triggerId
+          ? findResource(triggerId)
+          : undefined;
+        return (
+          <div
+            key={`${beat.id}-${key}`}
+            className={`tl-cell ${index === scrubIndex ? "is-playhead" : ""}`}
+            data-lane={key}
+            data-beat-index={index}
+            style={{ gridRow: row, gridColumn: index + 2 }}
+          >
+            {triggerId && trigger && (
+              <TimelineMarker
+                key={`${beat.id}-trigger-${key}`}
+                className={`tl-marker ${markerClass} is-trigger ${
+                  triggerResource && isSelected(key, triggerId)
+                    ? "is-selected"
+                    : ""
+                } ${triggerResource ? "" : "is-broken"}`}
+                title={
+                  triggerResource
+                    ? trigger.title(triggerResource.label)
+                    : trigger.unknownTitle(triggerId)
+                }
+                ariaLabel={
+                  triggerResource
+                    ? trigger.aria(triggerResource.label)
+                    : trigger.unknownAria(triggerId)
+                }
+                dragPayload={{
+                  type: "trigger-placement",
+                  id: triggerId,
+                  sourceBeatId: beat.id,
+                }}
+                onStartDrag={onStartPlacementDrag}
+                onEndDrag={onEndDrag}
+                onSelect={() =>
+                  triggerResource && onSelect({ kind: key, id: triggerId })
+                }
+                onRemove={() =>
+                  onRemovePlacement({ kind: "trigger", beatId: beat.id })
+                }
+              >
+                <Zap size={11} />
+              </TimelineMarker>
+            )}
+            {actions.map((action) => {
+              const resource = findResource(action.targetId);
+              return (
+                <TimelineMarker
+                  key={action.id}
+                  className={`tl-marker ${markerClass} ${
+                    resource && isSelected(key, action.targetId)
+                      ? "is-selected"
+                      : ""
+                  } ${resource ? "" : "is-broken"}`}
+                  title={
+                    resource
+                      ? config.actionTitle(resource.label)
+                      : config.unknownTitle(action.targetId)
+                  }
+                  ariaLabel={
+                    resource
+                      ? config.actionAria(resource.label)
+                      : config.unknownAria(action.targetId)
+                  }
+                  dragPayload={{
+                    type: "action-placement",
+                    id: action.id,
+                    sourceBeatId: beat.id,
+                  }}
+                  onStartDrag={onStartPlacementDrag}
+                  onEndDrag={onEndDrag}
+                  onSelect={() =>
+                    resource && onSelect({ kind: key, id: action.targetId })
+                  }
+                  onRemove={() =>
+                    onRemovePlacement({
+                      kind: "action",
+                      beatId: beat.id,
+                      actionId: action.id,
+                    })
+                  }
+                >
+                  <MarkerIcon size={11} />
+                </TimelineMarker>
+              );
+            })}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -219,6 +390,81 @@ export function StagingTimeline({
 
   const isSelected = (kind: StagingSelection["kind"], id: string) =>
     selection?.kind === kind && selection.id === id;
+
+  const resourceLanes: ResourceLaneConfig[] = [
+    {
+      key: "hud",
+      label: "HUD / Lens",
+      row: hudRow,
+      laneIcon: Bell,
+      markerIcon: Bell,
+      markerClass: "tl-marker-hud",
+      actionMatches: (action) => action.type === "show_hud",
+      findResource: (id) => {
+        const event = scene.hudEvents.find(
+          (candidate) => candidate.id === id,
+        );
+        return event ? { label: event.text } : undefined;
+      },
+      actionTitle: (label) => label,
+      actionAria: (label) => `${label} HUD placement`,
+      unknownTitle: (id) => `Unknown HUD: ${id}`,
+      unknownAria: (id) => `Unknown HUD ${id}`,
+    },
+    {
+      key: "interactable",
+      label: "Interactables",
+      row: interactableRow,
+      laneIcon: MousePointerClick,
+      markerIcon: MousePointerClick,
+      markerClass: "tl-marker-interactable",
+      actionMatches: (action) => action.type === "update_interactable",
+      findResource: (id) => {
+        const interactable = scene.interactables.find(
+          (candidate) => candidate.id === id,
+        );
+        return interactable ? { label: interactable.name } : undefined;
+      },
+      actionTitle: (label) => label,
+      actionAria: (label) => `${label} placement`,
+      unknownTitle: (id) => `Unknown interactable: ${id}`,
+      unknownAria: (id) => `Unknown interactable ${id}`,
+      trigger: {
+        matches: (beat) =>
+          beat.triggerType === "interaction" && Boolean(beat.triggerTarget),
+        title: (label) => `Trigger: player uses ${label}`,
+        aria: (label) => `${label} trigger`,
+        unknownTitle: (id) => `Unknown interactable trigger: ${id}`,
+        unknownAria: (id) => `Unknown interactable trigger ${id}`,
+      },
+    },
+    {
+      key: "item",
+      label: "Inventory",
+      row: itemRow,
+      laneIcon: Package,
+      markerIcon: Package,
+      markerClass: "tl-marker-item",
+      actionMatches: (action) =>
+        action.type === "give_item" || action.type === "update_item",
+      findResource: (id) => {
+        const item = scene.items.find((candidate) => candidate.id === id);
+        return item ? { label: item.name } : undefined;
+      },
+      actionTitle: (label) => label,
+      actionAria: (label) => `${label} inventory placement`,
+      unknownTitle: (id) => `Unknown item: ${id}`,
+      unknownAria: (id) => `Unknown item ${id}`,
+      trigger: {
+        matches: (beat) =>
+          beat.triggerType === "item_used" && Boolean(beat.triggerTarget),
+        title: (label) => `Trigger: Grayson uses ${label} from inventory`,
+        aria: (label) => `${label} inventory trigger`,
+        unknownTitle: (id) => `Unknown item trigger: ${id}`,
+        unknownAria: (id) => `Unknown item trigger ${id}`,
+      },
+    },
+  ];
 
   return (
     <div className="staging-timeline">
@@ -457,265 +703,19 @@ export function StagingTimeline({
             ];
           })}
 
-          <div className="tl-lane-label is-static" style={{ gridRow: hudRow, gridColumn: 1 }}>
-            <Bell size={13} />
-            <span>HUD / Lens</span>
-          </div>
-          {beats.map((beat, index) => {
-            const shows = beat.actions.filter(
-              (action) => action.type === "show_hud",
-            );
-            return (
-              <div
-                key={`${beat.id}-hud`}
-                className={`tl-cell ${index === scrubIndex ? "is-playhead" : ""}`}
-                data-lane="hud"
-                data-beat-index={index}
-                style={{ gridRow: hudRow, gridColumn: index + 2 }}
-              >
-                {shows.map((action) => {
-                  const event = scene.hudEvents.find(
-                    (candidate) => candidate.id === action.targetId,
-                  );
-                  return (
-                    <TimelineMarker
-                      key={action.id}
-                      className={`tl-marker tl-marker-hud ${
-                        event && isSelected("hud", event.id) ? "is-selected" : ""
-                      } ${event ? "" : "is-broken"}`}
-                      title={event ? event.text : `Unknown HUD: ${action.targetId}`}
-                      ariaLabel={
-                        event
-                          ? `${event.text} HUD placement`
-                          : `Unknown HUD ${action.targetId}`
-                      }
-                      dragPayload={{
-                        type: "action-placement",
-                        id: action.id,
-                        sourceBeatId: beat.id,
-                      }}
-                      onStartDrag={startPlacementDrag}
-                      onEndDrag={endDrag}
-                      onSelect={() =>
-                        event && onSelect({ kind: "hud", id: event.id })
-                      }
-                      onRemove={() =>
-                        onRemovePlacement({
-                          kind: "action",
-                          beatId: beat.id,
-                          actionId: action.id,
-                        })
-                      }
-                    >
-                      <Bell size={11} />
-                    </TimelineMarker>
-                  );
-                })}
-              </div>
-            );
-          })}
-
-          <div
-            className="tl-lane-label is-static"
-            style={{ gridRow: interactableRow, gridColumn: 1 }}
-          >
-            <MousePointerClick size={13} />
-            <span>Interactables</span>
-          </div>
-          {beats.map((beat, index) => {
-            const updated = beat.actions.filter(
-              (action) => action.type === "update_interactable",
-            );
-            const triggered =
-              beat.triggerType === "interaction"
-                ? scene.interactables.find(
-                    (interactable) =>
-                      interactable.id === beat.triggerTarget,
-                  )
-                : undefined;
-            return (
-              <div
-                key={`${beat.id}-interactables`}
-                className={`tl-cell ${index === scrubIndex ? "is-playhead" : ""}`}
-                data-lane="interactable"
-                data-beat-index={index}
-                style={{ gridRow: interactableRow, gridColumn: index + 2 }}
-              >
-                {triggered && (
-                  <TimelineMarker
-                    key={`${beat.id}-trigger-interactable`}
-                    className={`tl-marker tl-marker-interactable is-trigger ${
-                      isSelected("interactable", triggered.id)
-                        ? "is-selected"
-                        : ""
-                    }`}
-                    title={`Trigger: player uses ${triggered.name}`}
-                    ariaLabel={`${triggered.name} trigger`}
-                    dragPayload={{
-                      type: "trigger-placement",
-                      id: triggered.id,
-                      sourceBeatId: beat.id,
-                    }}
-                    onStartDrag={startPlacementDrag}
-                    onEndDrag={endDrag}
-                    onSelect={() =>
-                      onSelect({ kind: "interactable", id: triggered.id })
-                    }
-                    onRemove={() =>
-                      onRemovePlacement({
-                        kind: "trigger",
-                        beatId: beat.id,
-                      })
-                    }
-                  >
-                    <Zap size={11} />
-                  </TimelineMarker>
-                )}
-                {updated.map((action) => {
-                  const interactable = scene.interactables.find(
-                    (candidate) => candidate.id === action.targetId,
-                  );
-                  return (
-                    <TimelineMarker
-                      key={action.id}
-                      className={`tl-marker tl-marker-interactable ${
-                        interactable &&
-                        isSelected("interactable", interactable.id)
-                          ? "is-selected"
-                          : ""
-                      } ${interactable ? "" : "is-broken"}`}
-                      title={
-                        interactable
-                          ? interactable.name
-                          : `Unknown interactable: ${action.targetId}`
-                      }
-                      ariaLabel={
-                        interactable
-                          ? `${interactable.name} placement`
-                          : `Unknown interactable ${action.targetId}`
-                      }
-                      dragPayload={{
-                        type: "action-placement",
-                        id: action.id,
-                        sourceBeatId: beat.id,
-                      }}
-                      onStartDrag={startPlacementDrag}
-                      onEndDrag={endDrag}
-                      onSelect={() =>
-                        interactable &&
-                        onSelect({
-                          kind: "interactable",
-                          id: interactable.id,
-                        })
-                      }
-                      onRemove={() =>
-                        onRemovePlacement({
-                          kind: "action",
-                          beatId: beat.id,
-                          actionId: action.id,
-                        })
-                      }
-                    >
-                      <MousePointerClick size={11} />
-                    </TimelineMarker>
-                  );
-                })}
-              </div>
-            );
-          })}
-
-          <div className="tl-lane-label is-static" style={{ gridRow: itemRow, gridColumn: 1 }}>
-            <Package size={13} />
-            <span>Inventory</span>
-          </div>
-          {beats.map((beat, index) => {
-            const touches = beat.actions.filter(
-              (action) =>
-                action.type === "give_item" || action.type === "update_item",
-            );
-            const triggered =
-              beat.triggerType === "item_used"
-                ? scene.items.find((item) => item.id === beat.triggerTarget)
-                : undefined;
-            return (
-              <div
-                key={`${beat.id}-items`}
-                className={`tl-cell ${index === scrubIndex ? "is-playhead" : ""}`}
-                data-lane="item"
-                data-beat-index={index}
-                style={{ gridRow: itemRow, gridColumn: index + 2 }}
-              >
-                {triggered && (
-                  <TimelineMarker
-                    key={`${beat.id}-trigger-item`}
-                    className={`tl-marker tl-marker-item is-trigger ${
-                      isSelected("item", triggered.id) ? "is-selected" : ""
-                    }`}
-                    title={`Trigger: Grayson uses ${triggered.name} from inventory`}
-                    ariaLabel={`${triggered.name} inventory trigger`}
-                    dragPayload={{
-                      type: "trigger-placement",
-                      id: triggered.id,
-                      sourceBeatId: beat.id,
-                    }}
-                    onStartDrag={startPlacementDrag}
-                    onEndDrag={endDrag}
-                    onSelect={() =>
-                      onSelect({ kind: "item", id: triggered.id })
-                    }
-                    onRemove={() =>
-                      onRemovePlacement({
-                        kind: "trigger",
-                        beatId: beat.id,
-                      })
-                    }
-                  >
-                    <Zap size={11} />
-                  </TimelineMarker>
-                )}
-                {touches.map((action) => {
-                  const item = scene.items.find(
-                    (candidate) => candidate.id === action.targetId,
-                  );
-                  return (
-                    <TimelineMarker
-                      key={action.id}
-                      className={`tl-marker tl-marker-item ${
-                        item && isSelected("item", item.id) ? "is-selected" : ""
-                      } ${item ? "" : "is-broken"}`}
-                      title={
-                        item ? item.name : `Unknown item: ${action.targetId}`
-                      }
-                      ariaLabel={
-                        item
-                          ? `${item.name} inventory placement`
-                          : `Unknown item ${action.targetId}`
-                      }
-                      dragPayload={{
-                        type: "action-placement",
-                        id: action.id,
-                        sourceBeatId: beat.id,
-                      }}
-                      onStartDrag={startPlacementDrag}
-                      onEndDrag={endDrag}
-                      onSelect={() =>
-                        item && onSelect({ kind: "item", id: item.id })
-                      }
-                      onRemove={() =>
-                        onRemovePlacement({
-                          kind: "action",
-                          beatId: beat.id,
-                          actionId: action.id,
-                        })
-                      }
-                    >
-                      <Package size={11} />
-                    </TimelineMarker>
-                  );
-                })}
-              </div>
-            );
-          })}
+          {resourceLanes.map((config) => (
+            <ResourceLane
+              key={config.key}
+              config={config}
+              beats={beats}
+              scrubIndex={scrubIndex}
+              isSelected={isSelected}
+              onSelect={onSelect}
+              onRemovePlacement={onRemovePlacement}
+              onStartPlacementDrag={startPlacementDrag}
+              onEndDrag={endDrag}
+            />
+          ))}
 
           {beats.map((beat, index) => (
             <div

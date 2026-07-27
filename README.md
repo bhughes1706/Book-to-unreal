@@ -101,9 +101,12 @@ Report the scene and beat plan for my approval.
 ```
 
 Request changes directly in the chat, or approve the current plan. After
-approval, the skill writes validated Story files to `imports/<CHAPTER_ID>/`.
-Use **Import YAML** in Scenework to load them, then make cleanup changes in
-Story.
+approval, the skill writes validated Story files to
+`imports/<BOOK_SLUG>/<CHAPTER_ID>/` — a stable, kebab-case slug you choose per
+book (for example `buzzing-electric`), not the chapter ID alone. If you only
+have one book, the skill uses its existing folder without asking; starting a
+second book, it asks which slug to use. Use **Import YAML** in Scenework to
+load the files, then make cleanup changes in Story.
 
 ## Create a visual blockout with AI
 
@@ -114,13 +117,32 @@ creating or merging `<SCENE_ID>.scene.yaml`.
 
 ```text
 Use $draft-scene-blockout to propose a visual blockout for
-imports/CH02/CH02_S01_EXAMPLE.authoring.yaml.
+imports/buzzing-electric/CH02/CH02_S01_EXAMPLE.authoring.yaml.
 ```
 
 Import the resulting YAML or continue editing the same scene in the **Layout**
 tab. If Story changes later, Scenework marks Layout stale. **Merge story
 changes** carries new Story bindings downstream while preserving manual
 coordinates and other spatial work.
+
+## Delete a chapter or a book
+
+`imports/<BOOK_SLUG>/<CHAPTER_ID>/` is the single on-disk home for a chapter's
+portable Story (`.authoring.yaml`) and Layout (`.scene.yaml`) files, grouped
+under a stable per-book slug (for example `buzzing-electric`). Scenework's
+**Delete book** only clears that book from browser localStorage — it never
+touches disk, by design (browser autosave is working state, not the source
+repository). To remove artifacts from disk, delete the matching folder:
+
+```bash
+python3 scripts/delete_chapter.py buzzing-electric CH01   # one chapter
+python3 scripts/delete_chapter.py buzzing-electric        # the whole book
+```
+
+Add `--yes` to skip the confirmation prompt. There is nowhere else a chapter's
+artifacts should live; if you find chapter-scoped files outside
+`imports/<BOOK_SLUG>/<CHAPTER_ID>/`, that is a bug in whatever wrote them
+there.
 
 For a local production-mode build:
 
@@ -141,7 +163,7 @@ uv pip install --python .venv/bin/python \
 cd chapter-to-game-yaml
 PYTHONPATH=. ../.venv/bin/python -m unittest discover -s tests -v
 ../.venv/bin/python tools/novel_manifest.py validate \
-  chapters/CH01/scenes/CH01_S01_DikeBeach.scene.yaml
+  tests/fixtures/CH01/scenes/CH01_S01_DikeBeach.scene.yaml
 ```
 
 See the [package README](chapter-to-game-yaml/README.md) for validation and

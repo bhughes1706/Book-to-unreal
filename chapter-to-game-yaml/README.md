@@ -8,17 +8,20 @@ This package contains two linked layers:
 ## Contents
 
 - `SKILL.md` — repeatable chapter-to-manifest instructions and adaptation policy.
-- `schemas/chapter_manifest.schema.json` — chapter manifest contract.
-- `schemas/scene_authoring.schema.json` — author-facing scene editor contract.
-- `schemas/scene_manifest.schema.json` — strict focused-scene/compiler contract.
-- `chapters/CH01/CH01.manifest.yaml` — Chapter 1 production breakdown.
-- `chapters/CH01/source/` — extracted source text and source metadata.
-- `chapters/CH01/scenes/` — compiler-ready focused scenes.
-- `chapters/CH01/compiled/` — deterministic Unreal-facing output.
-- `novel_manifest/` — installable validator/compiler package.
+- `novel_manifest/schemas/chapter_manifest.schema.json` — chapter manifest contract.
+- `novel_manifest/schemas/scene_authoring.schema.json` — author-facing scene editor contract.
+- `novel_manifest/schemas/scene_manifest.schema.json` — strict focused-scene/compiler contract.
+- `novel_manifest/` — installable validator/compiler package (the schemas above ship inside it).
 - `tools/novel_manifest.py` — repository-local CLI entry point.
-- `tests/` — regression tests.
+- `tests/` — regression tests, backed by self-contained fixtures under `tests/fixtures/`.
 - `docs/compiler_contract.md` — compiler boundary and normalization rules.
+
+A book's live chapter artifacts (Story `.authoring.yaml` and Layout `.scene.yaml`)
+live at the repository root under `imports/<BOOK_SLUG>/<CHAPTER_ID>/` — see the top-level
+[README](../README.md) and [Scenework YAML pipeline](../docs/scenework-yaml-pipeline.md).
+This package no longer owns a `chapters/<ID>/` directory for live books; its
+`tests/fixtures/CH01/` copy exists only to exercise the validator and compiler
+in isolation from any book you are currently editing.
 
 ## Installation
 
@@ -40,7 +43,7 @@ novel-manifest --help
 
 ```bash
 python tools/novel_manifest.py validate \
-  chapters/CH01/CH01.manifest.yaml \
+  tests/fixtures/CH01/CH01.manifest.yaml \
   --kind chapter \
   --source /path/to/Ch1.docx
 ```
@@ -57,7 +60,7 @@ Chapter validation performs:
 
 ```bash
 python tools/novel_manifest.py validate \
-  chapters/CH01/scenes/CH01_S01_DikeBeach.scene.yaml
+  tests/fixtures/CH01/scenes/CH01_S01_DikeBeach.scene.yaml
 ```
 
 Focused-scene validation performs:
@@ -71,22 +74,32 @@ Focused-scene validation performs:
 
 Machine-readable diagnostics are available with `--json`.
 
-## Compile for Unreal
+## Compile for an engine
 
 ```bash
+# Target defaults to design.engine on the manifest, else Unreal.
 python tools/novel_manifest.py compile \
-  chapters/CH01/scenes/CH01_S01_DikeBeach.scene.yaml \
-  --output chapters/CH01/compiled/CH01_S01_DikeBeach.compiled.json
+  tests/fixtures/CH01/scenes/CH01_S01_DikeBeach.scene.yaml \
+  --output build/CH01_S01_DikeBeach.compiled.json
+
+# Or pick one: --target {unreal,godot,unity}
+python tools/novel_manifest.py compile \
+  tests/fixtures/CH01/scenes/CH01_S01_DikeBeach.scene.yaml \
+  --target godot --output build/godot/CH01_S01_DikeBeach.json
 ```
 
 Compilation:
 
 - refuses manifests with semantic errors
-- converts meters to Unreal centimeters
-- converts snake_case keys to camelCase
-- converts trigger/action names to Unreal-friendly enum names
-- emits a canonical SHA-256 for change detection
-- omits timestamps, so identical input produces byte-identical output
+- converts meters to the target's units (Unreal centimeters; Godot/Unity meters)
+- reorients position vectors to the target's up axis and handedness
+- converts snake_case keys to camelCase with target unit suffixes
+- converts trigger/action names to PascalCase enum names
+- records the resolved engine profile under a top-level `target` block
+- emits a canonical SHA-256 for change detection (identical across engines)
+- omits timestamps, so identical input + target produces byte-identical output
+
+See [docs/compiler_contract.md](docs/compiler_contract.md) for the full engine target table.
 
 ## Run tests
 
@@ -94,16 +107,16 @@ Compilation:
 PYTHONPATH=. python -m unittest discover -s tests -v
 ```
 
-## Intended Unreal workflow
+## Intended engine workflow
 
 ```text
 chapter.docx
   → chapter YAML skill
   → author-approved chapter manifest
-  → focused scene YAML
-  → novel-manifest validate/compile
-  → normalized JSON
-  → Unreal editor importer / scene builder / MCP tool
+  → focused scene YAML (engine chosen at export → design.engine)
+  → novel-manifest validate/compile --target <engine>
+  → engine-native JSON
+  → engine importer / scene builder / MCP tool
 ```
 
-The compiler does not directly modify Unreal. The next layer will be a `NovelPipeline` Unreal editor plugin that consumes the compiled JSON and builds the dike graybox deterministically.
+The compiler does not directly modify any engine. The next layer is an importer (starting with a `NovelPipeline` Unreal editor plugin) that consumes the compiled JSON and builds the dike graybox deterministically; the same neutral source can compile to Godot or Unity by switching the target.

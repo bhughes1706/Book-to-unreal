@@ -61,6 +61,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "engine": {"type": "string", "enum": ["unreal", "godot", "unity"]},
         "camera_note": {"type": "string"},
         "player_start_region": {"type": "string"},
         "boy_path_region": {"type": "string"},

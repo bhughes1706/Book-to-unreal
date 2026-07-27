@@ -2,15 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-const ID_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+import { normalizeIdInput } from "@/lib/id-builder";
 
-function normalizeId(value: string) {
-  return value
-    .toUpperCase()
-    .replace(/[\s-]+/g, "_")
-    .replace(/[^A-Z0-9_]/g, "")
-    .replace(/_{2,}/g, "_");
-}
+const ID_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 
 export function IdField({
   value,
@@ -69,7 +63,7 @@ export function IdField({
         value={draft}
         onBlur={commit}
         onChange={(event) => {
-          setDraft(normalizeId(event.target.value));
+          setDraft(normalizeIdInput(event.target.value));
           setError("");
         }}
         onKeyDown={(event) => {

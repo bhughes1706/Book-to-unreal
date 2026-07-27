@@ -6,7 +6,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .compiler import compile_scene
+from .compiler import (
+    DEFAULT_TARGET,
+    ENGINE_TARGETS,
+    compile_scene,
+    detect_target_name,
+    resolve_target,
+)
 from .diagnostics import Diagnostic
 from .loaders import ManifestLoadError, load_yaml
 from .validators import (
@@ -78,12 +84,21 @@ def command_compile(args: argparse.Namespace) -> int:
     if any(item.severity == "error" for item in diagnostics):
         return 1
 
-    compiled = compile_scene(document)
+    target_name = args.target
+    if target_name == "auto":
+        target_name = detect_target_name(document) or DEFAULT_TARGET
+    try:
+        target = resolve_target(target_name)
+    except ValueError as exc:
+        print(f"ERROR TARGET $: {exc}", file=sys.stderr)
+        return 2
+
+    compiled = compile_scene(document, target)
     payload = json.dumps(compiled, indent=2 if args.pretty else None, ensure_ascii=False, sort_keys=args.sort_keys) + "\n"
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(payload, encoding="utf-8")
     if not args.quiet:
-        print(f"COMPILED {document['scene_id']} -> {args.output}")
+        print(f"COMPILED {document['scene_id']} -> {args.output} [engine: {target.name}]")
         print(f"Beats: {len(compiled['runtime']['beats'])}; source hash: {compiled['source']['canonicalSha256']}")
     return 0
 
@@ -105,6 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser = subparsers.add_parser("compile", help="validate and compile a focused scene YAML to normalized JSON")
     compile_parser.add_argument("manifest", type=Path)
     compile_parser.add_argument("--output", "-o", type=Path, required=True)
+    compile_parser.add_argument(
+        "--target",
+        choices=("auto", *sorted(ENGINE_TARGETS)),
+        default="auto",
+        help="engine target for units/axes/naming; 'auto' reads design.engine, else unreal",
+    )
     compile_parser.add_argument("--schema", type=Path)
     compile_parser.add_argument("--pretty", action=argparse.BooleanOptionalAction, default=True)
     compile_parser.add_argument("--sort-keys", action="store_true")

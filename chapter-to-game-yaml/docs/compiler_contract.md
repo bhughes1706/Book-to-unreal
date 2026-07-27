@@ -1,18 +1,44 @@
 # Novel Manifest Compiler Contract
 
-The compiler treats the focused scene YAML as author-readable source and emits deterministic JSON for Unreal editor tooling.
+The compiler treats the focused scene YAML as author-readable source and emits deterministic JSON for a chosen game engine. The source YAML is engine-neutral (meters, author coordinate convention); the engine target is the only layer that applies units, axes, and naming.
 
 ## Commands
 
 ```bash
-python tools/novel_manifest.py validate chapters/CH01/scenes/CH01_S01_DikeBeach.scene.yaml
+python tools/novel_manifest.py validate tests/fixtures/CH01/scenes/CH01_S01_DikeBeach.scene.yaml
 
+# Engine defaults to design.engine on the manifest, else Unreal.
 python tools/novel_manifest.py compile \
-  chapters/CH01/scenes/CH01_S01_DikeBeach.scene.yaml \
-  --output chapters/CH01/compiled/CH01_S01_DikeBeach.compiled.json
+  tests/fixtures/CH01/scenes/CH01_S01_DikeBeach.scene.yaml \
+  --output build/CH01_S01_DikeBeach.compiled.json
+
+# Or force a target explicitly.
+python tools/novel_manifest.py compile \
+  tests/fixtures/CH01/scenes/CH01_S01_DikeBeach.scene.yaml \
+  --target godot \
+  --output build/godot/CH01_S01_DikeBeach.json
 ```
 
+The paths above point at this package's self-contained regression fixtures.
+A book's real chapter artifacts live at the repository root under
+`imports/<BOOK_SLUG>/<CHAPTER_ID>/`; substitute that path when validating or compiling a
+chapter you are actually authoring.
+
 The installed package also exposes the same interface as `novel-manifest`.
+
+## Engine targets
+
+`--target {auto,unreal,godot,unity}` (default `auto`). `auto` reads `design.engine` from the manifest — which the Scenework editor writes when you pick an engine at export — and falls back to `unreal`. Every target reads the same neutral source; only the emitted numbers, axis order, and unit suffixes differ.
+
+| Target | Units | Up axis | Handedness | Vector fields |
+| --- | --- | --- | --- | --- |
+| `unreal` | centimeters (×100) | Z | left | `locationCm`, `pointsCm`, `speedCmps` |
+| `unity` | meters (×1) | Y | left | `locationM`, `pointsM`, `speedMps` |
+| `godot` | meters (×1) | Y | right | `locationM`, `pointsM`, `speedMps` |
+
+Author space is `X` = horizontal run, `Y` = depth into the scene, `Z` = up. Y-up targets move height into `Y` and depth into `Z`; the right-handed target (`godot`) negates depth. The compiled JSON records the resolved profile under a top-level `target` block (`engine`, `unitScale`, `upAxis`, `handedness`) so an importer never has to guess.
+
+Adding an engine means adding one `EngineTarget` in `novel_manifest/compiler.py` — the trigger/action semantics, validation, and source hash are shared across all targets.
 
 ## Exit codes
 
@@ -34,10 +60,12 @@ Warnings do not block compilation. Errors do.
 - Scalar `_m` values become `_cm` and are multiplied by 100.
 - `location_m` and `points_m` vectors become `locationCm` and `pointsCm`.
 - `_mps` values become `_cmps` and are multiplied by 100.
-- Trigger and action type names become Unreal-friendly PascalCase enum names.
-- A canonical SHA-256 is calculated from parsed, key-sorted source data. Comments and whitespace do not affect the hash.
-- No build timestamp is emitted, allowing byte-for-byte deterministic output from identical source data and compiler versions.
+- Scalar `_m`/`_mps`/`_meters` values and `location_m`/`points_m` vectors convert to the target's units and unit-suffixed names (see the engine table above).
+- Position vectors are axis-remapped for the target's up axis and handedness; named extents (length/width/height) keep their names and are not reordered.
+- Trigger and action type names become PascalCase enum names (shared across engines).
+- A canonical SHA-256 is calculated from parsed, key-sorted source data. Comments, whitespace, and the chosen engine target do not affect the hash — the same source hashes identically for every engine.
+- No build timestamp is emitted, allowing byte-for-byte deterministic output from identical source data, compiler version, and target.
 
-## Unreal boundary
+## Engine boundary
 
-Unreal should consume only the compiled JSON. The creative YAML and its schema remain outside runtime code. An editor importer can deserialize the JSON into C++ structs or Primary Data Assets, build the graybox, and then retain the source hash for change detection.
+The target engine should consume only the compiled JSON. The creative YAML and its schema remain outside runtime code. An importer can deserialize the JSON into engine structs/assets, read the `target` block to confirm units and axes, build the graybox, and retain the source hash for change detection.

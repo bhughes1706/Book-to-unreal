@@ -16,6 +16,7 @@ import {
   FileJson2,
   FileText,
   GitBranch,
+  Library,
   Menu,
   Map,
   MessageSquareQuote,
@@ -41,79 +42,59 @@ import {
   useRef,
   useState,
 } from "react";
-import type { SetStateAction } from "react";
 
 import {
   ConfirmationDialog,
   type ConfirmationRequest,
 } from "@/components/confirmation-dialog";
-import { IdField } from "@/components/id-field";
 import { EventThreadView } from "@/components/event-thread-view";
+import { ReviewPill } from "@/components/review-pill";
+import {
+  ChangesTab,
+  DialogueTab,
+  OutputTab,
+  type OutputMode,
+} from "@/components/scene-tabs";
 import { LayoutEditor } from "@/components/layout-editor";
 import { StagingEditor } from "@/components/staging-editor";
-import type { StagingSelection } from "@/components/staging-editor";
 import type { ImportedScene } from "@/lib/authoring-import";
 import { parseAuthoringScene } from "@/lib/authoring-import";
-import { chapterSeed } from "@/lib/chapter-seed";
-import { dialogueIdSuggestion } from "@/lib/id-builder";
+import { idSegment } from "@/lib/id-builder";
 import type { ImportedLayout } from "@/lib/layout-import";
 import { parseLayoutManifest } from "@/lib/layout-import";
-import { authoringSha256, layoutToYaml } from "@/lib/layout-model";
+import { downloadText } from "@/lib/download";
+import { isLayoutStale, layoutToYaml } from "@/lib/layout-model";
+import { runSceneChecks, type CheckIssue } from "@/lib/scene-checks";
 import { buildStoryEventThreads } from "@/lib/story-events";
 import {
-  actionLabels,
-  hudChannelLabels,
-  triggerLabels,
+  renameBeatReferences,
+  type StagingSelection,
 } from "@/lib/staging-model";
 import type {
   ChapterDraft,
   ChoiceOption,
   DialogueUnit,
   EffectScope,
+  EngineTarget,
   PresentationMode,
-  ReviewStatus,
   SceneDraft,
-  SceneInteractable,
-  SceneInteractableKind,
-  SceneItem,
-  SceneItemKind,
   SceneStatus,
   StoryChange,
 } from "@/lib/editor-types";
+import { sceneToJson, sceneToYaml } from "@/lib/scene-export";
 import {
-  sceneToJson,
-  sceneToYaml,
-  toAuthoringDocument,
-} from "@/lib/scene-export";
+  blankScene,
+  isTextEditingTarget,
+  newProjectId,
+  seedProject,
+  useWorkspace,
+} from "@/components/use-workspace";
 
-const WORKSPACE_KEY = "scenework.workspace.v1";
-const LEGACY_KEY = "scenework.chapter.CH01.v1";
-const SEED_DATA_VERSION = 4;
-
-interface CheckIssue {
-  key: string;
-  location: string;
-  message: string;
-  tab: WorkspaceTab;
-  staging?: StagingSelection;
-  anchorId?: string;
-}
-
-interface UndoSnapshot {
-  chapters: ChapterDraft[];
-  activeChapterId: string;
-  activeSceneId: string;
-}
-
-function isTextEditingTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    target.isContentEditable
-  );
-}
+const ENGINE_LABELS: Record<EngineTarget, string> = {
+  unreal: "Unreal",
+  godot: "Godot",
+  unity: "Unity",
+};
 
 const sceneStatusLabel: Record<SceneStatus, string> = {
   draft: "Draft",
@@ -121,22 +102,6 @@ const sceneStatusLabel: Record<SceneStatus, string> = {
   approved: "Approved",
   locked: "Locked",
 };
-
-const reviewStatusLabel: Record<ReviewStatus, string> = {
-  unreviewed: "Unreviewed",
-  approved: "Approved",
-  rejected: "Rejected",
-  needs_discussion: "Discuss",
-};
-
-const effectScopes: { value: EffectScope; label: string }[] = [
-  { value: "relationship", label: "Relationship" },
-  { value: "self_definition", label: "Self-definition" },
-  { value: "public_perception", label: "Public perception" },
-  { value: "resources", label: "Resources" },
-  { value: "scene_variation", label: "Scene variation" },
-  { value: "later_access", label: "Later access" },
-];
 
 type WorkspaceTab =
   | "source"
@@ -146,236 +111,9 @@ type WorkspaceTab =
   | "events"
   | "changes"
   | "output";
-type OutputMode = "authoring_yaml" | "layout_yaml" | "json";
 
 function makeId(prefix: string, value: string) {
-  const slug = value
-    .normalize("NFKD")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/[\s-]+/g, "_")
-    .toUpperCase()
-    .slice(0, 44);
-  return `${prefix}_${slug || Date.now()}`;
-}
-
-function migrateChapter(
-  saved: ChapterDraft,
-  enrichSeedDetails = false,
-): ChapterDraft {
-  return {
-    ...saved,
-    scenes: saved.scenes.map((scene) => {
-      const seededScene = chapterSeed.scenes.find(
-        (candidate) => candidate.id === scene.id,
-      );
-      type LegacySceneItem = Omit<SceneItem, "kind"> & { kind: string };
-      const legacyItems = (scene.items ??
-        seededScene?.items ??
-        []) as LegacySceneItem[];
-      const becomesInteractable = (item: LegacySceneItem) =>
-        item.kind === "environmental_interactable" ||
-        item.kind === "scene_prop" ||
-        [
-          "ITEM_REAL_WHISKEY_BOTTLE",
-          "ITEM_SHARED_WHISKEY_BOTTLE",
-          "ITEM_SHARED_CIGARETTE",
-        ].includes(item.id);
-      const inferInteractableKind = (
-        item: LegacySceneItem,
-      ): SceneInteractableKind => {
-        const id = item.id.toUpperCase();
-        if (
-          item.kind === "scene_prop" ||
-          [
-            "WHISKEY",
-            "CIGARETTE",
-            "COCKTAIL",
-            "MICROPHONE",
-            "STOOL",
-            "WATER",
-            "COOKIE",
-          ].some((token) => id.includes(token))
-        ) {
-          return "prop";
-        }
-        if (
-          id.includes("ENTRANCE") ||
-          id.includes("EXIT") ||
-          id.includes("PLATFORM") ||
-          id.includes("FENCE")
-        ) {
-          return "transition";
-        }
-        if (id.includes("STAIR")) return "traversal";
-        return "inspection";
-      };
-      const migratedLegacyInteractables: SceneInteractable[] = legacyItems
-        .filter(becomesInteractable)
-        .map((item) => ({
-          id: item.id,
-          name: item.name,
-          kind: inferInteractableKind(item),
-          interactionPrompt: item.interactionPrompt,
-          outcome: item.outcome,
-          status: item.status,
-        }));
-      const migratedItems: SceneItem[] = legacyItems
-        .filter((item) => !becomesInteractable(item))
-        .map((item) => ({
-          ...item,
-          kind: (
-            ["personal_item", "key_item", "consumable", "document"].includes(
-              item.kind,
-            )
-              ? item.kind
-              : item.id.includes("FORTUNE")
-                ? "document"
-                : "personal_item"
-          ) as SceneItemKind,
-        }));
-      const savedInteractables =
-        (
-          scene as SceneDraft & {
-            interactables?: SceneInteractable[];
-          }
-        ).interactables ?? [];
-      const interactables = [
-        ...savedInteractables,
-        ...migratedLegacyInteractables.filter(
-          (candidate) =>
-            !savedInteractables.some((item) => item.id === candidate.id),
-        ),
-      ];
-      const interactableIds = new Set(
-        interactables.map((interactable) => interactable.id),
-      );
-      const itemIds = new Set(migratedItems.map((item) => item.id));
-      const migrated = {
-        ...scene,
-        npcs: scene.npcs ?? seededScene?.npcs ?? [],
-        items: migratedItems,
-        interactables,
-        hudEvents: scene.hudEvents ?? seededScene?.hudEvents ?? [],
-        beats: (scene.beats ?? seededScene?.beats ?? []).map((beat) => ({
-          ...beat,
-          triggerType:
-            beat.triggerType === "interaction" &&
-            itemIds.has(beat.triggerTarget)
-              ? ("item_used" as const)
-              : beat.triggerType,
-          actions: beat.actions.map((action) =>
-            action.type === "update_item" &&
-            interactableIds.has(action.targetId)
-              ? { ...action, type: "update_interactable" as const }
-              : action,
-          ),
-        })),
-      };
-      const continuityHudIds = new Set([
-        "LENS_SYSTEM_NOTIFICATION_CONGRATULATE_DIVER_FAMILY",
-      ]);
-      const continuityBeatIds = new Set([
-        "SCENE_BEAT_PIER_DIVER_DISAPPEARS",
-        "SCENE_BEAT_DIVER_FAMILY_NOTIFICATION",
-      ]);
-      const withContinuity =
-        enrichSeedDetails && seededScene
-          ? {
-              ...migrated,
-              hudEvents: [
-                ...migrated.hudEvents,
-                ...seededScene.hudEvents.filter(
-                  (event) =>
-                    continuityHudIds.has(event.id) &&
-                    !migrated.hudEvents.some(
-                      (candidate) => candidate.id === event.id,
-                    ),
-                ),
-              ],
-              beats: [
-                ...migrated.beats,
-                ...seededScene.beats.filter(
-                  (beat) =>
-                    continuityBeatIds.has(beat.id) &&
-                    !migrated.beats.some(
-                      (candidate) => candidate.id === beat.id,
-                    ),
-                ),
-              ],
-            }
-          : migrated;
-      const isNewlyDetailedChapterOneScene =
-        seededScene &&
-        seededScene.order >= 4 &&
-        seededScene.order <= 9 &&
-        seededScene.id.startsWith("CH01_");
-      if (!enrichSeedDetails || !isNewlyDetailedChapterOneScene) {
-        return withContinuity;
-      }
-      return {
-        ...withContinuity,
-        timeContext: withContinuity.timeContext || seededScene.timeContext,
-        status:
-          withContinuity.status === "draft"
-            ? seededScene.status
-            : withContinuity.status,
-        playerGoal: withContinuity.playerGoal || seededScene.playerGoal,
-        sourceExcerpt:
-          withContinuity.sourceExcerpt || seededScene.sourceExcerpt,
-        dialogue:
-          withContinuity.dialogue.length > 0
-            ? withContinuity.dialogue
-            : seededScene.dialogue,
-        storyChanges:
-          withContinuity.storyChanges.length > 0
-            ? withContinuity.storyChanges
-            : seededScene.storyChanges,
-        npcs:
-          withContinuity.npcs.length > 0
-            ? withContinuity.npcs
-            : seededScene.npcs,
-        items:
-          withContinuity.items.length > 0
-            ? withContinuity.items
-            : seededScene.items,
-        interactables:
-          withContinuity.interactables.length > 0
-            ? withContinuity.interactables
-            : seededScene.interactables,
-        hudEvents:
-          withContinuity.hudEvents.length > 0
-            ? withContinuity.hudEvents
-            : seededScene.hudEvents,
-        beats:
-          withContinuity.beats.length > 0
-            ? withContinuity.beats
-            : seededScene.beats,
-        notes: withContinuity.notes || seededScene.notes,
-      };
-    }),
-  };
-}
-
-function blankScene(id: string, order: number): SceneDraft {
-  return {
-    id,
-    order,
-    title: "New scene",
-    timeContext: "",
-    status: "draft",
-    presentationMode: "scrolling_hd2d",
-    playerGoal: "",
-    sourceExcerpt: "",
-    dialogue: [],
-    storyChanges: [],
-    npcs: [],
-    items: [],
-    interactables: [],
-    hudEvents: [],
-    beats: [],
-    notes: "",
-  };
+  return `${prefix}_${idSegment(value, 44) || Date.now()}`;
 }
 
 function chapterTitleFromId(chapterId: string) {
@@ -454,21 +192,6 @@ function mergeLayoutImports(
   return { chapters: next, attached, missing };
 }
 
-function truncate(value: string, length: number) {
-  const trimmed = value.trim();
-  return trimmed.length > length ? `${trimmed.slice(0, length)}…` : trimmed;
-}
-
-function downloadText(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const href = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = href;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(href);
-}
-
 function StatusDot({ status }: { status: SceneStatus }) {
   if (status === "approved" || status === "locked") {
     return <CheckCircle2 aria-hidden size={15} />;
@@ -479,50 +202,13 @@ function StatusDot({ status }: { status: SceneStatus }) {
   return <Circle aria-hidden size={14} />;
 }
 
-function ReviewPill({
-  value,
-  onChange,
-}: {
-  value: ReviewStatus;
-  onChange: (status: ReviewStatus) => void;
-}) {
-  return (
-    <label className={`review-pill review-${value}`}>
-      <span>{reviewStatusLabel[value]}</span>
-      <ChevronDown aria-hidden size={13} />
-      <select
-        aria-label="Review status"
-        value={value}
-        onChange={(event) => onChange(event.target.value as ReviewStatus)}
-      >
-        {Object.entries(reviewStatusLabel).map(([status, label]) => (
-          <option key={status} value={status}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 export function SceneEditor() {
-  const [chapters, setChaptersRaw] = useState<ChapterDraft[]>([chapterSeed]);
-  const [activeChapterId, setActiveChapterId] = useState(chapterSeed.id);
-  const [activeSceneId, setActiveSceneId] = useState(
-    "CH01_S03_WALK_TO_VENUE",
-  );
-  const [canUndo, setCanUndo] = useState(false);
-  const [authoringHashes, setAuthoringHashes] = useState<
-    Record<string, string>
-  >({});
-  const [hashesPending, setHashesPending] = useState(true);
   const [confirmation, setConfirmation] =
     useState<ConfirmationRequest | null>(null);
   const [tab, setTab] = useState<WorkspaceTab>("source");
   const [outputMode, setOutputMode] =
     useState<OutputMode>("authoring_yaml");
   const [query, setQuery] = useState("");
-  const [hydrated, setHydrated] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [issues, setIssues] = useState<CheckIssue[] | null>(null);
@@ -535,79 +221,23 @@ export function SceneEditor() {
   );
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const chaptersRef = useRef<ChapterDraft[]>([chapterSeed]);
-  const activeChapterIdRef = useRef(activeChapterId);
-  const activeSceneIdRef = useRef(activeSceneId);
-  const undoStackRef = useRef<UndoSnapshot[]>([]);
-  const lastHistoryInputRef = useRef<{
-    element: Element | null;
-    at: number;
-  } | null>(null);
 
-  useEffect(() => {
-    activeChapterIdRef.current = activeChapterId;
-  }, [activeChapterId]);
-
-  useEffect(() => {
-    activeSceneIdRef.current = activeSceneId;
-  }, [activeSceneId]);
-
-  const setChapters = useCallback(
-    (update: SetStateAction<ChapterDraft[]>) => {
-      const current = chaptersRef.current;
-      const next =
-        typeof update === "function"
-          ? (update as (value: ChapterDraft[]) => ChapterDraft[])(current)
-          : update;
-      if (next === current) return;
-
-      const focused =
-        typeof document === "undefined" ? null : document.activeElement;
-      const now = Date.now();
-      const lastInput = lastHistoryInputRef.current;
-      const coalesce =
-        isTextEditingTarget(focused) &&
-        lastInput?.element === focused &&
-        now - lastInput.at < 700;
-
-      if (!coalesce) {
-        undoStackRef.current.push({
-          chapters: current,
-          activeChapterId: activeChapterIdRef.current,
-          activeSceneId: activeSceneIdRef.current,
-        });
-        if (undoStackRef.current.length > 80) {
-          undoStackRef.current.shift();
-        }
-      }
-      lastHistoryInputRef.current = isTextEditingTarget(focused)
-        ? { element: focused, at: now }
-        : null;
-      chaptersRef.current = next;
-      setChaptersRaw(next);
-      setCanUndo(undoStackRef.current.length > 0);
-    },
-    [],
-  );
-
-  const undo = useCallback(() => {
-    const snapshot = undoStackRef.current.pop();
-    if (!snapshot) {
-      setNotice("Nothing to undo.");
-      return;
-    }
-    lastHistoryInputRef.current = null;
-    chaptersRef.current = snapshot.chapters;
-    setChaptersRaw(snapshot.chapters);
-    activeChapterIdRef.current = snapshot.activeChapterId;
-    activeSceneIdRef.current = snapshot.activeSceneId;
-    setActiveChapterId(snapshot.activeChapterId);
-    setActiveSceneId(snapshot.activeSceneId);
-    setConfirmation(null);
-    setIssues(null);
-    setCanUndo(undoStackRef.current.length > 0);
-    setNotice("Undid the last workspace change.");
-  }, []);
+  const {
+    projects,
+    setProjects,
+    setChapters,
+    setTargetEngine,
+    activeProjectId,
+    setActiveProjectId,
+    activeChapterId,
+    setActiveChapterId,
+    activeSceneId,
+    setActiveSceneId,
+    canUndo,
+    undo: undoWorkspace,
+    authoringHashes,
+    hashesPending,
+  } = useWorkspace(setNotice);
 
   const requestConfirmation = useCallback(
     (request: ConfirmationRequest) => setConfirmation(request),
@@ -615,6 +245,16 @@ export function SceneEditor() {
   );
 
   const closeConfirmation = useCallback(() => setConfirmation(null), []);
+
+  const undo = useCallback(() => {
+    if (undoWorkspace() === "empty") {
+      setNotice("Nothing to undo.");
+      return;
+    }
+    setConfirmation(null);
+    setIssues(null);
+    setNotice("Undid the last workspace change.");
+  }, [undoWorkspace]);
 
   useEffect(() => {
     const handleUndo = (event: KeyboardEvent) => {
@@ -633,63 +273,14 @@ export function SceneEditor() {
     return () => window.removeEventListener("keydown", handleUndo);
   }, [undo]);
 
-  useEffect(() => {
-    try {
-      const savedWorkspace = window.localStorage.getItem(WORKSPACE_KEY);
-      if (savedWorkspace) {
-        const parsed = JSON.parse(savedWorkspace) as {
-          chapters?: ChapterDraft[];
-          activeChapterId?: string;
-          dataVersion?: number;
-        };
-        if (Array.isArray(parsed.chapters) && parsed.chapters.length > 0) {
-          const enrichSeedDetails =
-            (parsed.dataVersion ?? 1) < SEED_DATA_VERSION;
-          const restored = parsed.chapters.map((chapter) =>
-            migrateChapter(chapter, enrichSeedDetails),
-          );
-          chaptersRef.current = restored;
-          setChaptersRaw(restored);
-          undoStackRef.current = [];
-          setCanUndo(false);
-          const restoredActive =
-            restored.find((chapter) => chapter.id === parsed.activeChapterId) ??
-            restored[0];
-          activeChapterIdRef.current = restoredActive.id;
-          setActiveChapterId(restoredActive.id);
-          setNotice("Recovered your local chapters.");
-          setHydrated(true);
-          return;
-        }
-      }
-      const legacy = window.localStorage.getItem(LEGACY_KEY);
-      if (legacy) {
-        const restored = [
-          migrateChapter(JSON.parse(legacy) as ChapterDraft, true),
-        ];
-        chaptersRef.current = restored;
-        setChaptersRaw(restored);
-        undoStackRef.current = [];
-        setCanUndo(false);
-        setNotice("Recovered your local edit and updated its staging data.");
-      }
-    } catch {
-      window.localStorage.removeItem(WORKSPACE_KEY);
-    }
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem(
-      WORKSPACE_KEY,
-      JSON.stringify({
-        dataVersion: SEED_DATA_VERSION,
-        chapters,
-        activeChapterId,
-      }),
-    );
-  }, [chapters, activeChapterId, hydrated]);
+  const activeProject = useMemo(
+    () =>
+      projects.find((candidate) => candidate.id === activeProjectId) ??
+      projects[0],
+    [projects, activeProjectId],
+  );
+  const chapters = activeProject.chapters;
+  const targetEngine = activeProject.targetEngine;
 
   const chapter = useMemo(
     () =>
@@ -714,42 +305,6 @@ export function SceneEditor() {
     [activeSceneId, chapter.scenes],
   );
 
-  const authoringHashInput = useMemo(
-    () =>
-      chapters
-        .flatMap((candidate) =>
-          candidate.scenes.map((scene) => [
-            scene.id,
-            JSON.stringify(toAuthoringDocument(scene)),
-          ]),
-        )
-        .map(([sceneId, document]) => `${sceneId}:${document}`)
-        .join("\n"),
-    [chapters],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    setHashesPending(true);
-    void Promise.all(
-      chapters.flatMap((candidate) =>
-        candidate.scenes.map(async (scene) => [
-          scene.id,
-          await authoringSha256(scene),
-        ] as const),
-      ),
-    ).then((entries) => {
-      if (cancelled) return;
-      setAuthoringHashes(Object.fromEntries(entries));
-      setHashesPending(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // authoringHashInput excludes layout-only changes by construction.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authoringHashInput]);
-
   const filteredScenes = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return chapter.scenes;
@@ -764,11 +319,8 @@ export function SceneEditor() {
     (scene) => scene.status === "approved" || scene.status === "locked",
   ).length;
   const layoutCount = chapter.scenes.filter((scene) => scene.layout).length;
-  const staleLayoutCount = chapter.scenes.filter(
-    (scene) =>
-      scene.layout &&
-      authoringHashes[scene.id] &&
-      scene.layout.upstreamAuthoringHash !== authoringHashes[scene.id],
+  const staleLayoutCount = chapter.scenes.filter((scene) =>
+    isLayoutStale(scene, authoringHashes),
   ).length;
   const progress = Math.round(
     (approvedCount / Math.max(chapter.scenes.length, 1)) * 100,
@@ -810,6 +362,63 @@ export function SceneEditor() {
     setTab("source");
     setIssues(null);
     setNotice(`Switched to ${target.title}.`);
+  };
+
+  const openProject = (projectId: string) => {
+    const target = projects.find((candidate) => candidate.id === projectId);
+    if (!target || projectId === activeProjectId) return;
+    const firstChapter = target.chapters[0];
+    setActiveProjectId(projectId);
+    setActiveChapterId(firstChapter?.id ?? "");
+    setActiveSceneId(firstChapter?.scenes[0]?.id ?? "");
+    setTab("source");
+    setIssues(null);
+    setNotice(`Opened ${target.title}.`);
+  };
+
+  const addProject = () => {
+    const id = newProjectId();
+    const project = seedProject(id);
+    const firstChapter = project.chapters[0];
+    setProjects((current) => [...current, project]);
+    setActiveProjectId(id);
+    setActiveChapterId(firstChapter.id);
+    setActiveSceneId(firstChapter.scenes[0]?.id ?? "");
+    setTab("source");
+    setIssues(null);
+    setNotice("New book created. Rename it, then add chapters and scenes.");
+  };
+
+  const deleteProject = () => {
+    requestConfirmation({
+      title: `Delete ${activeProject.title}?`,
+      description: `This removes the entire book — its ${activeProject.chapters.length} chapter${
+        activeProject.chapters.length === 1 ? "" : "s"
+      } and every scene inside — from the local workspace. Exported files are unaffected.`,
+      confirmLabel: "Delete book",
+      onConfirm: () => {
+        const remaining = projects.filter(
+          (candidate) => candidate.id !== activeProject.id,
+        );
+        const emptied = remaining.length === 0;
+        if (emptied) {
+          remaining.push(seedProject());
+        }
+        const nextActive = remaining[0];
+        const nextChapter = nextActive.chapters[0];
+        setProjects(remaining);
+        setActiveProjectId(nextActive.id);
+        setActiveChapterId(nextChapter?.id ?? "");
+        setActiveSceneId(nextChapter?.scenes[0]?.id ?? "");
+        setTab("source");
+        setIssues(null);
+        setNotice(
+          emptied
+            ? "Book deleted. A blank book is ready — press ⌘Z or Ctrl+Z to restore the old one."
+            : "Book deleted. Press ⌘Z or Ctrl+Z to restore it.",
+        );
+      },
+    });
   };
 
   const addScene = () => {
@@ -1031,15 +640,7 @@ export function SceneEditor() {
       dialogue: activeScene.dialogue.map((dialogue) =>
         dialogue.id === dialogueId ? { ...dialogue, id: nextId } : dialogue,
       ),
-      beats: activeScene.beats.map((beat) => ({
-        ...beat,
-        triggerTarget:
-          beat.triggerTarget === dialogueId ? nextId : beat.triggerTarget,
-        actions: beat.actions.map((action) => ({
-          ...action,
-          targetId: action.targetId === dialogueId ? nextId : action.targetId,
-        })),
-      })),
+      beats: renameBeatReferences(activeScene.beats, dialogueId, nextId),
     });
     setNotice(`Dialogue ID renamed to ${nextId}; beat references were updated.`);
   };
@@ -1200,431 +801,7 @@ export function SceneEditor() {
   };
 
   const runChecks = () => {
-    const found: CheckIssue[] = [];
-    const push = (issue: Omit<CheckIssue, "key">) =>
-      found.push({ key: String(found.length), ...issue });
-
-    if (!activeScene.sourceExcerpt.trim()) {
-      push({
-        location: "Source",
-        message:
-          "The source passage is empty — paste the passage this scene adapts.",
-        tab: "source",
-      });
-    }
-    if (!activeScene.playerGoal.trim()) {
-      push({
-        location: "Scene settings",
-        message:
-          "No player goal yet — describe what the player is trying to do (right-hand panel).",
-        tab: "source",
-      });
-    }
-
-    activeScene.dialogue.forEach((dialogue, dialogueIndex) => {
-      const line =
-        truncate(dialogue.text, 36) || `Dialogue ${dialogueIndex + 1}`;
-      if (!dialogue.speaker.trim()) {
-        push({
-          location: "Dialogue",
-          message: `“${line}” has no speaker.`,
-          tab: "dialogue",
-          anchorId: dialogue.id,
-        });
-      }
-      if (dialogue.playerChoice) {
-        if (dialogue.playerChoice.options.length < 2) {
-          push({
-            location: "Dialogue",
-            message: `The choice “${truncate(dialogue.playerChoice.prompt, 40)}” needs at least two options.`,
-            tab: "dialogue",
-            anchorId: dialogue.id,
-          });
-        }
-        dialogue.playerChoice.options.forEach((option) => {
-          if (!option.effect.trim() || option.effectScopes.length === 0) {
-            push({
-              location: "Dialogue",
-              message: `Option “${truncate(option.label, 32)}” needs a written consequence and at least one effect scope.`,
-              tab: "dialogue",
-              anchorId: dialogue.id,
-            });
-          }
-        });
-      }
-    });
-
-    if (activeScene.beats.length === 0) {
-      push({
-        location: "Staging",
-        message:
-          "No beats yet — add at least one beat so the scene is playable.",
-        tab: "staging",
-      });
-    }
-    const beatIds = new Set(activeScene.beats.map((beat) => beat.id));
-    const npcIds = new Set(activeScene.npcs.map((npc) => npc.id));
-    const itemIds = new Set(activeScene.items.map((item) => item.id));
-    const interactableIds = new Set(
-      activeScene.interactables.map((interactable) => interactable.id),
-    );
-    const hudIds = new Set(activeScene.hudEvents.map((event) => event.id));
-    const dialogueIds = new Set(
-      activeScene.dialogue.map((dialogue) => dialogue.id),
-    );
-
-    activeScene.npcs.forEach((npc) => {
-      const name = npc.displayName.trim() || npc.id;
-      const focus: StagingSelection = { kind: "npc", id: npc.id };
-      if (!npc.displayName.trim() || !npc.role.trim()) {
-        push({
-          location: "Staging · NPCs",
-          message: `${name} needs a display name and a story role.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (npc.presence === "enters_on_beat" && !npc.entranceBeatId) {
-        push({
-          location: "Staging · NPCs",
-          message: `${name} is set to enter mid-scene, but no entrance beat is chosen.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (
-        (npc.entranceBeatId && !beatIds.has(npc.entranceBeatId)) ||
-        (npc.exitBeatId && !beatIds.has(npc.exitBeatId))
-      ) {
-        push({
-          location: "Staging · NPCs",
-          message: `${name} points at an entrance or exit beat that no longer exists.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-    });
-
-    activeScene.items.forEach((item) => {
-      if (!item.name.trim() || !item.outcome.trim()) {
-        push({
-          location: "Staging · Items",
-          message: `${item.name.trim() || item.id} needs a name and an interaction outcome.`,
-          tab: "staging",
-          staging: { kind: "item", id: item.id },
-        });
-      }
-    });
-
-    activeScene.interactables.forEach((interactable) => {
-      if (!interactable.name.trim() || !interactable.outcome.trim()) {
-        push({
-          location: "Staging · Interactables",
-          message: `${interactable.name.trim() || interactable.id} needs a name and an interaction outcome.`,
-          tab: "staging",
-          staging: { kind: "interactable", id: interactable.id },
-        });
-      }
-    });
-
-    activeScene.hudEvents.forEach((event) => {
-      const name = `The ${hudChannelLabels[event.channel].toLowerCase()} HUD event`;
-      const focus: StagingSelection = { kind: "hud", id: event.id };
-      if (!event.text.trim() || !event.trigger.trim()) {
-        push({
-          location: "Staging · HUD",
-          message: `${name} needs on-screen text and an author-facing trigger.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (event.dismissMode === "timed" && event.durationSeconds <= 0) {
-        push({
-          location: "Staging · HUD",
-          message: `${name} is timed but has no duration in seconds.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (event.responses && event.responses.length === 1) {
-        push({
-          location: "Staging · HUD",
-          message: `${name} has only one player response — add another response or make it informational.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      event.responses?.forEach((response, responseIndex) => {
-        if (!response.label.trim() || !response.outcome.trim()) {
-          push({
-            location: "Staging · HUD",
-            message: `${name}, response ${responseIndex + 1}, needs a label and an outcome.`,
-            tab: "staging",
-            staging: focus,
-          });
-        }
-      });
-    });
-
-    activeScene.beats.forEach((beat, beatIndex) => {
-      const name = `Beat ${beatIndex + 1} “${truncate(beat.title, 30) || beat.id}”`;
-      const focus: StagingSelection = { kind: "beat", id: beat.id };
-      if (!beat.title.trim()) {
-        push({
-          location: "Staging · Beats",
-          message: `Beat ${beatIndex + 1} has no title.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (beat.triggerType !== "begin_play" && !beat.triggerTarget.trim()) {
-        push({
-          location: "Staging · Beats",
-          message: `${name} triggers on “${triggerLabels[beat.triggerType].toLowerCase()}” but has no target — pick what it reacts to.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (
-        beat.triggerType === "beat_completed" &&
-        beat.triggerTarget.trim() &&
-        !beatIds.has(beat.triggerTarget)
-      ) {
-        push({
-          location: "Staging · Beats",
-          message: `${name} waits for a beat that doesn't exist anymore.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (
-        beat.triggerType === "interaction" &&
-        beat.triggerTarget.trim() &&
-        !interactableIds.has(beat.triggerTarget)
-      ) {
-        push({
-          location: "Staging · Beats",
-          message: `${name} waits for an interactable that doesn't exist anymore.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (
-        beat.triggerType === "item_used" &&
-        beat.triggerTarget.trim() &&
-        !itemIds.has(beat.triggerTarget)
-      ) {
-        push({
-          location: "Staging · Beats",
-          message: `${name} waits for an inventory item that doesn't exist anymore.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      if (beat.actions.length === 0) {
-        push({
-          location: "Staging · Beats",
-          message: `${name} has no actions — add what happens.`,
-          tab: "staging",
-          staging: focus,
-        });
-      }
-      beat.actions.forEach((action, actionIndex) => {
-        const actionName = `${name}, action ${actionIndex + 1} (${actionLabels[action.type]})`;
-        if (!action.detail.trim()) {
-          push({
-            location: "Staging · Beats",
-            message: `${actionName} has no direction text.`,
-            tab: "staging",
-            staging: focus,
-          });
-        }
-        const targetExists =
-          action.type === "show_hud"
-            ? hudIds.has(action.targetId)
-            : action.type === "spawn_npc" || action.type === "move_npc"
-              ? npcIds.has(action.targetId)
-              : action.type === "give_item" || action.type === "update_item"
-                ? itemIds.has(action.targetId)
-                : action.type === "update_interactable"
-                  ? interactableIds.has(action.targetId)
-                  : action.type === "play_dialogue"
-                    ? dialogueIds.has(action.targetId)
-                    : true;
-        if (!targetExists) {
-          push({
-            location: "Staging · Beats",
-            message: action.targetId
-              ? `${actionName} targets “${action.targetId}”, which doesn't exist in this scene.`
-              : `${actionName} needs a target.`,
-            tab: "staging",
-            staging: focus,
-          });
-        }
-      });
-    });
-
-    const layout = activeScene.layout;
-    const currentAuthoringHash = authoringHashes[activeScene.id];
-    if (!layout) {
-      if (
-        activeScene.status === "approved" ||
-        activeScene.status === "locked"
-      ) {
-        push({
-          location: "Layout",
-          message:
-            "The story is approved, but this scene has no spatial layout YAML yet.",
-          tab: "layout",
-        });
-      }
-    } else {
-      if (
-        currentAuthoringHash &&
-        layout.upstreamAuthoringHash !== currentAuthoringHash
-      ) {
-        push({
-          location: "Layout · Change ripple",
-          message:
-            "The authoring YAML changed after this layout was created. Merge story changes before layout approval.",
-          tab: "layout",
-        });
-      }
-      if (layout.mergeConflicts.length > 0) {
-        push({
-          location: "Layout · Merge review",
-          message: `${layout.mergeConflicts.length} merge review item${
-            layout.mergeConflicts.length === 1 ? " remains" : "s remain"
-          } unresolved.`,
-          tab: "layout",
-        });
-      }
-      if (!layout.levelName.trim() || !layout.outputPath.trim()) {
-        push({
-          location: "Layout · Level",
-          message:
-            "The layout needs both a level name and future content output path.",
-          tab: "layout",
-        });
-      }
-      if (
-        layout.dimensions.lengthM <= 0 ||
-        layout.dimensions.widthM <= 0 ||
-        layout.dimensions.heightM <= 0
-      ) {
-        push({
-          location: "Layout · Bounds",
-          message: "Every scene dimension must be greater than zero.",
-          tab: "layout",
-        });
-      }
-      if (
-        !layout.placements.some(
-          (placement) => placement.kind === "player_start",
-        )
-      ) {
-        push({
-          location: "Layout · Placements",
-          message: "No player-start placement exists.",
-          tab: "layout",
-        });
-      }
-
-      const requiredSpatialIds = new Set([
-        ...activeScene.npcs.map((npc) => npc.id),
-        ...activeScene.interactables.map((interactable) => interactable.id),
-        ...activeScene.items
-          .filter((item) => item.initialState === "visible")
-          .map((item) => item.id),
-      ]);
-      const placedSourceIds = new Set(
-        layout.placements.map((placement) => placement.sourceId),
-      );
-      requiredSpatialIds.forEach((sourceId) => {
-        if (!placedSourceIds.has(sourceId)) {
-          push({
-            location: "Layout · Story bindings",
-            message: `${sourceId} has spatial presence in Story but no layout placement.`,
-            tab: "layout",
-          });
-        }
-      });
-
-      layout.placements.forEach((placement) => {
-        if (placement.orphaned) {
-          push({
-            location: "Layout · Story bindings",
-            message: `${placement.label} is orphaned from its Story resource.`,
-            tab: "layout",
-          });
-        }
-        if (placement.beatId && !beatIds.has(placement.beatId)) {
-          push({
-            location: "Layout · Beat bindings",
-            message: `${placement.label} points to a beat that no longer exists.`,
-            tab: "layout",
-          });
-        }
-        const activeAxis =
-          activeScene.presentationMode === "static_cinematic"
-            ? placement.yM
-            : placement.zM;
-        const activeAxisLimit =
-          activeScene.presentationMode === "static_cinematic"
-            ? layout.dimensions.widthM
-            : layout.dimensions.heightM;
-        if (
-          placement.xM < 0 ||
-          placement.xM > layout.dimensions.lengthM ||
-          activeAxis < 0 ||
-          activeAxis > activeAxisLimit
-        ) {
-          push({
-            location: "Layout · Bounds",
-            message: `${placement.label} is outside the visible scene bounds.`,
-            tab: "layout",
-          });
-        }
-      });
-
-      layout.paths.forEach((path) => {
-        if (path.points.length < 2) {
-          push({
-            location: "Layout · Paths",
-            message: `${path.id} needs at least two route points.`,
-            tab: "layout",
-          });
-        }
-        if (path.sourceId && !npcIds.has(path.sourceId)) {
-          push({
-            location: "Layout · Paths",
-            message: `${path.id} is bound to an NPC that no longer exists.`,
-            tab: "layout",
-          });
-        }
-        if (path.beatId && !beatIds.has(path.beatId)) {
-          push({
-            location: "Layout · Paths",
-            message: `${path.id} points to a beat that no longer exists.`,
-            tab: "layout",
-          });
-        }
-      });
-
-      if (
-        layout.status === "layout_approved" &&
-        activeScene.status !== "approved" &&
-        activeScene.status !== "locked"
-      ) {
-        push({
-          location: "Layout · Approval",
-          message:
-            "Layout is approved while the upstream story is still under review.",
-          tab: "layout",
-        });
-      }
-    }
-
+    const found = runSceneChecks(activeScene, authoringHashes[activeScene.id]);
     setIssues(found);
     setNotice(
       found.length > 0
@@ -1644,7 +821,7 @@ export function SceneEditor() {
     } else if (mode === "layout_yaml" && activeScene.layout) {
       downloadText(
         `${stem}.scene.yaml`,
-        layoutToYaml(activeScene, activeScene.layout),
+        layoutToYaml(activeScene, activeScene.layout, targetEngine),
         "application/yaml",
       );
     } else if (mode === "layout_yaml") {
@@ -1662,7 +839,7 @@ export function SceneEditor() {
         mode === "authoring_yaml"
           ? "Story YAML"
           : mode === "layout_yaml"
-            ? "Layout YAML"
+            ? `Layout YAML (${ENGINE_LABELS[targetEngine]} target)`
             : "Authoring JSON"
       } export prepared.`,
     );
@@ -1673,7 +850,7 @@ export function SceneEditor() {
       ? sceneToYaml(activeScene)
       : outputMode === "layout_yaml"
         ? activeScene.layout
-          ? layoutToYaml(activeScene, activeScene.layout)
+          ? layoutToYaml(activeScene, activeScene.layout, targetEngine)
           : "# Create a layout for this scene to preview its .scene.yaml."
         : sceneToJson(activeScene);
   const stagingReviewed =
@@ -1728,6 +905,8 @@ export function SceneEditor() {
           </div>
         </div>
         <div className="topbar-center">
+          <span className="crumb-muted">{activeProject.title}</span>
+          <span className="crumb-divider">/</span>
           <span className="crumb-muted">
             Chapter {String(chapterIndex + 1).padStart(2, "0")}
           </span>
@@ -1779,6 +958,61 @@ export function SceneEditor() {
             <X size={18} />
           </button>
         </div>
+        <section className="project-summary">
+          <div className="chapter-switch-row">
+            <div className="eyebrow">
+              <Library size={12} aria-hidden />
+              Book
+            </div>
+            {projects.length > 1 && (
+              <label className="chapter-switcher">
+                <select
+                  aria-label="Switch book"
+                  value={activeProject.id}
+                  onChange={(event) => openProject(event.target.value)}
+                >
+                  {projects.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.title} · {candidate.chapters.length} ch ·{" "}
+                      {ENGINE_LABELS[candidate.targetEngine]}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={13} />
+              </label>
+            )}
+          </div>
+          <div className="project-title-row">
+            <div>
+              <input
+                className="project-title-edit"
+                aria-label="Book title"
+                value={activeProject.title}
+                onChange={(event) =>
+                  setProjects((current) =>
+                    current.map((candidate) =>
+                      candidate.id === activeProject.id
+                        ? { ...candidate, title: event.target.value }
+                        : candidate,
+                    ),
+                  )
+                }
+              />
+              <div className="project-meta">
+                {projects.length} book{projects.length === 1 ? "" : "s"} ·{" "}
+                {ENGINE_LABELS[activeProject.targetEngine]} target
+              </div>
+            </div>
+            <button
+              className="icon-button danger-hover"
+              aria-label="Delete book"
+              title="Delete this book"
+              onClick={deleteProject}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </section>
         <section className="chapter-summary">
           <div className="chapter-switch-row">
             <div className="eyebrow">Current chapter</div>
@@ -1789,28 +1023,17 @@ export function SceneEditor() {
                   value={chapter.id}
                   onChange={(event) => openChapter(event.target.value)}
                 >
-                  {chapters.map((candidate, index) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {String(index + 1).padStart(2, "0")} · {candidate.title}
-                      {candidate.scenes.filter(
-                        (scene) =>
-                          scene.layout &&
-                          authoringHashes[scene.id] &&
-                          scene.layout.upstreamAuthoringHash !==
-                            authoringHashes[scene.id],
-                      ).length > 0
-                        ? ` · ${
-                            candidate.scenes.filter(
-                              (scene) =>
-                                scene.layout &&
-                                authoringHashes[scene.id] &&
-                                scene.layout.upstreamAuthoringHash !==
-                                  authoringHashes[scene.id],
-                            ).length
-                          } stale`
-                        : ""}
-                    </option>
-                  ))}
+                  {chapters.map((candidate, index) => {
+                    const staleCount = candidate.scenes.filter((scene) =>
+                      isLayoutStale(scene, authoringHashes),
+                    ).length;
+                    return (
+                      <option key={candidate.id} value={candidate.id}>
+                        {String(index + 1).padStart(2, "0")} · {candidate.title}
+                        {staleCount > 0 ? ` · ${staleCount} stale` : ""}
+                      </option>
+                    );
+                  })}
                 </select>
                 <ChevronDown size={13} />
               </label>
@@ -1890,16 +1113,12 @@ export function SceneEditor() {
               {scene.layout && (
                 <span
                   className={`scene-layout-state ${
-                    authoringHashes[scene.id] &&
-                    scene.layout.upstreamAuthoringHash !==
-                      authoringHashes[scene.id]
+                    isLayoutStale(scene, authoringHashes)
                       ? "is-stale"
                       : "is-current"
                   }`}
                   title={
-                    authoringHashes[scene.id] &&
-                    scene.layout.upstreamAuthoringHash !==
-                      authoringHashes[scene.id]
+                    isLayoutStale(scene, authoringHashes)
                       ? "Layout is stale"
                       : "Layout exists"
                   }
@@ -1932,6 +1151,13 @@ export function SceneEditor() {
               Import YAML
             </button>
           </div>
+          <button
+            className="button button-full button-quiet"
+            onClick={addProject}
+          >
+            <Library size={15} />
+            New book
+          </button>
           <input
             ref={importInputRef}
             type="file"
@@ -2021,18 +1247,10 @@ export function SceneEditor() {
               {value === "layout" && activeScene.layout && (
                 <span
                   className={`tab-count ${
-                    authoringHashes[activeScene.id] &&
-                    activeScene.layout.upstreamAuthoringHash !==
-                      authoringHashes[activeScene.id]
-                      ? "is-stale"
-                      : ""
+                    isLayoutStale(activeScene, authoringHashes) ? "is-stale" : ""
                   }`}
                 >
-                  {authoringHashes[activeScene.id] &&
-                  activeScene.layout.upstreamAuthoringHash !==
-                    authoringHashes[activeScene.id]
-                    ? "!"
-                    : "1"}
+                  {isLayoutStale(activeScene, authoringHashes) ? "!" : "1"}
                 </span>
               )}
               {value === "events" && eventThreads.length > 0 && (
@@ -2154,330 +1372,29 @@ export function SceneEditor() {
           )}
 
           {tab === "dialogue" && (
-            <section className="editor-section">
-              <div className="section-heading">
-                <div>
-                  <div className="eyebrow">Dialogue map</div>
-                  <h2>Approve the line, then define what a choice changes.</h2>
-                </div>
-                <button
-                  className="button button-secondary"
-                  onClick={addBlankDialogue}
-                >
-                  <Plus size={16} />
-                  Propose line
-                </button>
-              </div>
-
-              {activeScene.dialogue.length === 0 ? (
-                <div className="empty-state">
-                  <MessageSquareQuote size={26} />
-                  <h3>No dialogue selected yet</h3>
-                  <p>
-                    Select exact text in Source, or add a proposed line that is
-                    explicitly separate from canon.
-                  </p>
-                  <button
-                    className="button button-primary"
-                    onClick={() => setTab("source")}
-                  >
-                    Go to source
-                  </button>
-                </div>
-              ) : (
-                <div className="dialogue-stack">
-                  {activeScene.dialogue.map((dialogue, dialogueIndex) => (
-                    <article
-                      className="dialogue-card"
-                      id={`entity-${dialogue.id}`}
-                      key={dialogue.id}
-                    >
-                      <div className="dialogue-card-head">
-                        <span className="dialogue-index">
-                          D{String(dialogueIndex + 1).padStart(2, "0")}
-                        </span>
-                        <span
-                          className={`source-chip ${
-                            dialogue.sourceLocked ? "is-canon" : "is-proposed"
-                          }`}
-                        >
-                          {dialogue.sourceLocked
-                            ? "Source locked"
-                            : "Proposed line"}
-                        </span>
-                        <ReviewPill
-                          value={dialogue.status}
-                          onChange={(status) =>
-                            updateDialogue(dialogue.id, (item) => ({
-                              ...item,
-                              status,
-                            }))
-                          }
-                        />
-                        <button
-                          className="icon-button danger-hover"
-                          aria-label="Remove dialogue line"
-                          onClick={() =>
-                            requestConfirmation({
-                              title: `Delete ${dialogue.speaker || "this"} line?`,
-                              description: `This removes “${truncate(dialogue.text, 90)}” and may leave beat references that need review.`,
-                              confirmLabel: "Delete dialogue",
-                              onConfirm: () => {
-                                updateScene({
-                                  dialogue: activeScene.dialogue.filter(
-                                    (item) => item.id !== dialogue.id,
-                                  ),
-                                });
-                                setNotice(
-                                  "Dialogue deleted. Press ⌘Z or Ctrl+Z to restore it.",
-                                );
-                              },
-                            })
-                          }
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                      <div className="dialogue-fields">
-                        <IdField
-                          className="dialogue-id-field"
-                          label="Dialogue ID"
-                          ariaLabel={`Dialogue ${dialogueIndex + 1} ID`}
-                          value={dialogue.id}
-                          suggestedId={dialogueIdSuggestion(
-                            dialogue.speaker,
-                            dialogue.text,
-                          )}
-                          suggestionReason="Character dialogue begins with the speaker name, then DIALOGUE, then a short line cadence."
-                          reservedIds={activeSceneResourceIds.filter(
-                            (id) => id !== dialogue.id,
-                          )}
-                          onCommit={(nextId) =>
-                            renameDialogueId(dialogue.id, nextId)
-                          }
-                        />
-                        <label>
-                          <span>Speaker</span>
-                          <input
-                            value={dialogue.speaker}
-                            onChange={(event) =>
-                              updateDialogue(dialogue.id, (item) => ({
-                                ...item,
-                                speaker: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="dialogue-line-field">
-                          <span>Line</span>
-                          <textarea
-                            value={dialogue.text}
-                            onChange={(event) =>
-                              updateDialogue(dialogue.id, (item) => ({
-                                ...item,
-                                text: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
-
-                      {!dialogue.playerChoice ? (
-                        <button
-                          className="choice-add"
-                          onClick={() => attachChoice(dialogue.id)}
-                        >
-                          <span>
-                            <GitBranch size={17} />
-                          </span>
-                          <span>
-                            <strong>Add a player choice</strong>
-                            <small>
-                              Every option must write relationship, identity, or
-                              scene state.
-                            </small>
-                          </span>
-                          <Plus size={16} />
-                        </button>
-                      ) : (
-                        <div className="choice-builder">
-                          <div className="choice-builder-head">
-                            <div>
-                              <span className="eyebrow">Player choice</span>
-                              <input
-                                aria-label="Choice prompt"
-                                value={dialogue.playerChoice.prompt}
-                                onChange={(event) =>
-                                  updateDialogue(dialogue.id, (item) => ({
-                                    ...item,
-                                    playerChoice: item.playerChoice
-                                      ? {
-                                          ...item.playerChoice,
-                                          prompt: event.target.value,
-                                        }
-                                      : undefined,
-                                  }))
-                                }
-                              />
-                            </div>
-                            <ReviewPill
-                              value={dialogue.playerChoice.status}
-                              onChange={(status) =>
-                                updateDialogue(dialogue.id, (item) => ({
-                                  ...item,
-                                  playerChoice: item.playerChoice
-                                    ? { ...item.playerChoice, status }
-                                    : undefined,
-                                }))
-                              }
-                            />
-                          </div>
-                          <label className="bounds-field">
-                            <span>Canonical bounds</span>
-                            <textarea
-                              value={dialogue.playerChoice.canonicalBounds}
-                              onChange={(event) =>
-                                updateDialogue(dialogue.id, (item) => ({
-                                  ...item,
-                                  playerChoice: item.playerChoice
-                                    ? {
-                                        ...item.playerChoice,
-                                        canonicalBounds: event.target.value,
-                                      }
-                                    : undefined,
-                                }))
-                              }
-                            />
-                          </label>
-                          <div className="choice-options">
-                            {dialogue.playerChoice.options.map(
-                              (option, optionIndex) => (
-                                <article className="choice-option" key={option.id}>
-                                  <div className="choice-letter">
-                                    {String.fromCharCode(65 + optionIndex)}
-                                  </div>
-                                  <div className="choice-option-body">
-                                    <input
-                                      className="choice-label-input"
-                                      aria-label={`Choice ${optionIndex + 1} label`}
-                                      value={option.label}
-                                      onChange={(event) =>
-                                        updateChoiceOption(
-                                          dialogue.id,
-                                          option.id,
-                                          { label: event.target.value },
-                                        )
-                                      }
-                                    />
-                                    <textarea
-                                      aria-label={`Choice ${optionIndex + 1} effect`}
-                                      value={option.effect}
-                                      onChange={(event) =>
-                                        updateChoiceOption(
-                                          dialogue.id,
-                                          option.id,
-                                          { effect: event.target.value },
-                                        )
-                                      }
-                                    />
-                                    <div className="scope-row">
-                                      {effectScopes.map((scope) => (
-                                        <button
-                                          key={scope.value}
-                                          className={
-                                            option.effectScopes.includes(
-                                              scope.value,
-                                            )
-                                              ? "is-selected"
-                                              : ""
-                                          }
-                                          onClick={() =>
-                                            toggleScope(
-                                              dialogue.id,
-                                              option,
-                                              scope.value,
-                                            )
-                                          }
-                                        >
-                                          {scope.label}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  {dialogue.playerChoice &&
-                                    dialogue.playerChoice.options.length > 2 && (
-                                      <button
-                                        className="icon-button danger-hover"
-                                        aria-label="Remove choice option"
-                                        onClick={() =>
-                                          requestConfirmation({
-                                            title: `Delete “${option.label}”?`,
-                                            description:
-                                              "This removes the response and its recorded consequence from the player choice.",
-                                            confirmLabel: "Delete response",
-                                            onConfirm: () =>
-                                              updateDialogue(
-                                                dialogue.id,
-                                                (item) => ({
-                                                  ...item,
-                                                  playerChoice:
-                                                    item.playerChoice
-                                                      ? {
-                                                          ...item.playerChoice,
-                                                          options:
-                                                            item.playerChoice.options.filter(
-                                                              (candidate) =>
-                                                                candidate.id !==
-                                                                option.id,
-                                                            ),
-                                                        }
-                                                      : undefined,
-                                                }),
-                                              ),
-                                          })
-                                        }
-                                      >
-                                        <X size={14} />
-                                      </button>
-                                    )}
-                                </article>
-                              ),
-                            )}
-                          </div>
-                          <div className="choice-builder-footer">
-                            <button
-                              className="button button-quiet"
-                              onClick={() => addChoiceOption(dialogue.id)}
-                            >
-                              <Plus size={15} />
-                              Add response
-                            </button>
-                            <button
-                              className="text-button danger-text"
-                              onClick={() =>
-                                requestConfirmation({
-                                  title: "Remove this player choice?",
-                                  description:
-                                    "This deletes every response, consequence, and canonical-bound note attached to the dialogue line.",
-                                  confirmLabel: "Remove choice",
-                                  onConfirm: () =>
-                                    updateDialogue(dialogue.id, (item) => ({
-                                      ...item,
-                                      playerChoice: undefined,
-                                    })),
-                                })
-                              }
-                            >
-                              Remove choice
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
+            <DialogueTab
+              dialogue={activeScene.dialogue}
+              reservedIds={activeSceneResourceIds}
+              onAddBlank={addBlankDialogue}
+              onGoToSource={() => setTab("source")}
+              onUpdateDialogue={updateDialogue}
+              onRenameDialogueId={renameDialogueId}
+              onAttachChoice={attachChoice}
+              onUpdateChoiceOption={updateChoiceOption}
+              onAddChoiceOption={addChoiceOption}
+              onToggleScope={toggleScope}
+              onRequestConfirmation={requestConfirmation}
+              onDeleteDialogue={(id) => {
+                updateScene({
+                  dialogue: activeScene.dialogue.filter(
+                    (item) => item.id !== id,
+                  ),
+                });
+                setNotice(
+                  "Dialogue deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                );
+              }}
+            />
           )}
 
           {tab === "staging" && (
@@ -2512,145 +1429,23 @@ export function SceneEditor() {
           )}
 
           {tab === "changes" && (
-            <section className="editor-section">
-              <div className="section-heading">
-                <div>
-                  <div className="eyebrow">Adaptation ledger</div>
-                  <h2>Nothing changes from the source without a decision.</h2>
-                </div>
-                <button
-                  className="button button-secondary"
-                  onClick={addStoryChange}
-                >
-                  <Plus size={16} />
-                  Propose change
-                </button>
-              </div>
-              {activeScene.storyChanges.length === 0 ? (
-                <div className="empty-state compact">
-                  <GitBranch size={25} />
-                  <h3>No changes from source</h3>
-                  <p>
-                    This scene currently preserves source order, staging,
-                    character presence, motivation, and outcome.
-                  </p>
-                </div>
-              ) : (
-                <div className="change-stack">
-                  {activeScene.storyChanges.map((change) => (
-                    <article className="change-card" key={change.id}>
-                      <div className="change-card-head">
-                        <span className="change-type">{change.type}</span>
-                        <ReviewPill
-                          value={change.status}
-                          onChange={(status) =>
-                            updateChange(change.id, (item) => ({
-                              ...item,
-                              status,
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="change-compare">
-                        <label>
-                          <span>Source canon</span>
-                          <textarea
-                            value={change.canonical}
-                            onChange={(event) =>
-                              updateChange(change.id, (item) => ({
-                                ...item,
-                                canonical: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                        <div className="change-arrow">
-                          <ArrowUpRight size={18} />
-                        </div>
-                        <label>
-                          <span>Game proposal</span>
-                          <textarea
-                            value={change.proposed}
-                            onChange={(event) =>
-                              updateChange(change.id, (item) => ({
-                                ...item,
-                                proposed: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
-                      <label className="rationale-field">
-                        <span>Why this serves the adaptation</span>
-                        <input
-                          value={change.rationale}
-                          onChange={(event) =>
-                            updateChange(change.id, (item) => ({
-                              ...item,
-                              rationale: event.target.value,
-                            }))
-                          }
-                        />
-                      </label>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
+            <ChangesTab
+              storyChanges={activeScene.storyChanges}
+              onAdd={addStoryChange}
+              onUpdate={updateChange}
+            />
           )}
 
           {tab === "output" && (
-            <section className="editor-section output-section">
-              <div className="section-heading">
-                <div>
-                  <div className="eyebrow">Portable scene data</div>
-                  <h2>Review the authoring contract before export.</h2>
-                </div>
-                <div className="output-actions">
-                  <div className="segmented-control">
-                    <button
-                      className={
-                        outputMode === "authoring_yaml" ? "is-active" : ""
-                      }
-                      onClick={() => setOutputMode("authoring_yaml")}
-                    >
-                      Story YAML
-                    </button>
-                    <button
-                      className={
-                        outputMode === "layout_yaml" ? "is-active" : ""
-                      }
-                      onClick={() => setOutputMode("layout_yaml")}
-                    >
-                      Layout YAML
-                    </button>
-                    <button
-                      className={outputMode === "json" ? "is-active" : ""}
-                      onClick={() => setOutputMode("json")}
-                    >
-                      Authoring JSON
-                    </button>
-                  </div>
-                  <button
-                    className="button button-secondary"
-                    onClick={() => exportScene(outputMode)}
-                  >
-                    <Download size={16} />
-                    Download
-                  </button>
-                </div>
-              </div>
-              <pre className="output-code">
-                <code>{output}</code>
-              </pre>
-              <div className="output-note">
-                <ShieldCheck size={16} />
-                Story YAML owns narrative intent; Layout YAML owns reviewed
-                dimensions, coordinates, paths, cameras, and placeholder assets.
-                Authoring JSON is only a normalized preview. This editor does
-                not compile or write Unreal content.
-              </div>
-            </section>
+            <OutputTab
+              outputMode={outputMode}
+              onOutputModeChange={setOutputMode}
+              output={output}
+              targetEngine={targetEngine}
+              engineLabel={ENGINE_LABELS[targetEngine]}
+              onTargetEngineChange={setTargetEngine}
+              onDownload={() => exportScene(outputMode)}
+            />
           )}
         </div>
       </section>

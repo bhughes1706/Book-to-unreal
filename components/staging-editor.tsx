@@ -14,11 +14,13 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import type { MutableRefObject, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { IdField } from "@/components/id-field";
 import type { ConfirmationRequest } from "@/components/confirmation-dialog";
 import { ResourceRef, kindIcons } from "@/components/resource-ref";
+import { ReviewPill } from "@/components/review-pill";
 import { StagePreview } from "@/components/stage-preview";
 import { StagingTimeline } from "@/components/staging-timeline";
 import type {
@@ -48,9 +50,12 @@ import {
   hudIdSuggestion,
   interactableIdSuggestion,
   itemIdSuggestion,
+  nextId,
+  normalizeIdInput,
 } from "@/lib/id-builder";
 import type {
   StagingDragPayload,
+  StagingSelection,
   TimelinePlacement,
 } from "@/lib/staging-model";
 import {
@@ -69,6 +74,8 @@ import {
   npcSpan,
   persistenceLabels,
   presenceLabels,
+  removeResourceFromBeats,
+  renameBeatReferences,
   triggerLabels,
   triggerSentence,
   triggerTargetKind,
@@ -76,17 +83,7 @@ import {
 
 type StagingPanel = "beats" | "npcs" | "interactables" | "items" | "hud";
 
-export interface StagingSelection {
-  kind: "beat" | "npc" | "interactable" | "item" | "hud";
-  id: string;
-}
-
-const reviewStatusLabel: Record<ReviewStatus, string> = {
-  unreviewed: "Unreviewed",
-  approved: "Approved",
-  rejected: "Rejected",
-  needs_discussion: "Discuss",
-};
+export type { StagingSelection };
 
 const triggerTargetPlaceholder: Record<BeatTriggerType, string> = {
   begin_play: "",
@@ -107,42 +104,67 @@ const panelForKind: Record<StagingSelection["kind"], StagingPanel> = {
   hud: "hud",
 };
 
-function nextId(prefix: string, ids: string[]) {
-  let index = ids.length + 1;
-  let candidate = `${prefix}_${index}`;
-  while (ids.includes(candidate)) {
-    index += 1;
-    candidate = `${prefix}_${index}`;
-  }
-  return candidate;
-}
-
-function ReviewControl({
-  value,
-  onChange,
+/**
+ * A draggable resource row in a staging panel (NPCs, interactables, items, HUD).
+ * Beats have their own row with reordering and drop targets, so they are not
+ * rendered through this component.
+ */
+function StagingRow({
+  kind,
+  id,
+  selected,
+  icon: Icon,
+  avatarClassName,
+  title,
+  subtitle,
+  status,
+  dragPayloadRef,
+  onSelect,
+  onStatusChange,
 }: {
-  value: ReviewStatus;
-  onChange: (status: ReviewStatus) => void;
+  kind: "npc" | "interactable" | "item" | "hud";
+  id: string;
+  selected: boolean;
+  icon: typeof Users;
+  avatarClassName: string;
+  title: ReactNode;
+  subtitle: ReactNode;
+  status: ReviewStatus;
+  dragPayloadRef: MutableRefObject<StagingDragPayload | null>;
+  onSelect: () => void;
+  onStatusChange: (status: ReviewStatus) => void;
 }) {
   return (
-    <label
-      className={`review-pill review-${value}`}
-      onClick={(event) => event.stopPropagation()}
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      className={`staging-row ${selected ? "is-selected" : ""}`}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "copy";
+        event.dataTransfer.setData("application/x-staging", id);
+        dragPayloadRef.current = { type: kind, id };
+      }}
+      onDragEnd={() => {
+        dragPayloadRef.current = null;
+      }}
     >
-      <span>{reviewStatusLabel[value]}</span>
-      <ChevronDown aria-hidden size={13} />
-      <select
-        aria-label="Review status"
-        value={value}
-        onChange={(event) => onChange(event.target.value as ReviewStatus)}
-      >
-        {Object.entries(reviewStatusLabel).map(([status, label]) => (
-          <option key={status} value={status}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </label>
+      <span className={`row-avatar ${avatarClassName}`}>
+        <Icon size={15} />
+      </span>
+      <span className="row-copy">
+        <strong>{title}</strong>
+        <small>{subtitle}</small>
+      </span>
+      <ReviewPill value={status} onChange={onStatusChange} />
+    </div>
   );
 }
 
@@ -245,13 +267,7 @@ export function StagingEditor({
       items: scene.items.map((item) =>
         item.id === itemId ? { ...item, id: replacementId } : item,
       ),
-      beats: scene.beats.map((beat) => ({
-        ...beat,
-        actions: beat.actions.map((action) => ({
-          ...action,
-          targetId: action.targetId === itemId ? replacementId : action.targetId,
-        })),
-      })),
+      beats: renameBeatReferences(scene.beats, itemId, replacementId),
     });
     setSelection({ kind: "item", id: replacementId });
     onNotice(`Item ID renamed to ${replacementId}; beat references were updated.`);
@@ -267,20 +283,7 @@ export function StagingEditor({
           ? { ...interactable, id: replacementId }
           : interactable,
       ),
-      beats: scene.beats.map((beat) => ({
-        ...beat,
-        triggerTarget:
-          beat.triggerTarget === interactableId
-            ? replacementId
-            : beat.triggerTarget,
-        actions: beat.actions.map((action) => ({
-          ...action,
-          targetId:
-            action.targetId === interactableId
-              ? replacementId
-              : action.targetId,
-        })),
-      })),
+      beats: renameBeatReferences(scene.beats, interactableId, replacementId),
     });
     setSelection({ kind: "interactable", id: replacementId });
     onNotice(
@@ -301,14 +304,7 @@ export function StagingEditor({
       hudEvents: scene.hudEvents.map((event) =>
         event.id === eventId ? { ...event, id: replacementId } : event,
       ),
-      beats: scene.beats.map((beat) => ({
-        ...beat,
-        actions: beat.actions.map((action) => ({
-          ...action,
-          targetId:
-            action.targetId === eventId ? replacementId : action.targetId,
-        })),
-      })),
+      beats: renameBeatReferences(scene.beats, eventId, replacementId),
     });
     setSelection({ kind: "hud", id: replacementId });
     onNotice(
@@ -1119,7 +1115,7 @@ export function StagingEditor({
                     {beat.optional ? " · optional" : ""}
                   </small>
                 </span>
-                <ReviewControl
+                <ReviewPill
                   value={beat.status}
                   onChange={(status) => updateBeat(beat.id, { status })}
                 />
@@ -1152,189 +1148,84 @@ export function StagingEditor({
 
           {panel === "npcs" &&
             scene.npcs.map((npc) => (
-              <div
+              <StagingRow
                 key={npc.id}
-                role="button"
-                tabIndex={0}
-                draggable
-                className={`staging-row ${
-                  selectedNpc?.id === npc.id ? "is-selected" : ""
-                }`}
-                onClick={() => select({ kind: "npc", id: npc.id })}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    select({ kind: "npc", id: npc.id });
-                  }
-                }}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "copy";
-                  event.dataTransfer.setData("application/x-staging", npc.id);
-                  dragPayloadRef.current = { type: "npc", id: npc.id };
-                }}
-                onDragEnd={() => {
-                  dragPayloadRef.current = null;
-                }}
-              >
-                <span className="row-avatar resource-avatar">
-                  <Users size={15} />
-                </span>
-                <span className="row-copy">
-                  <strong>{npc.displayName}</strong>
-                  <small>
-                    {presenceLabels[npc.presence]} ·{" "}
-                    {behaviorLabels[npc.behavior]}
-                  </small>
-                </span>
-                <ReviewControl
-                  value={npc.status}
-                  onChange={(status) => updateNpc(npc.id, { status })}
-                />
-              </div>
+                kind="npc"
+                id={npc.id}
+                selected={selectedNpc?.id === npc.id}
+                icon={Users}
+                avatarClassName="resource-avatar"
+                title={npc.displayName}
+                subtitle={`${presenceLabels[npc.presence]} · ${behaviorLabels[npc.behavior]}`}
+                status={npc.status}
+                dragPayloadRef={dragPayloadRef}
+                onSelect={() => select({ kind: "npc", id: npc.id })}
+                onStatusChange={(status) => updateNpc(npc.id, { status })}
+              />
             ))}
 
           {panel === "interactables" &&
             scene.interactables.map((interactable) => (
-              <div
+              <StagingRow
                 key={interactable.id}
-                role="button"
-                tabIndex={0}
-                draggable
-                className={`staging-row ${
-                  selectedInteractable?.id === interactable.id
-                    ? "is-selected"
-                    : ""
+                kind="interactable"
+                id={interactable.id}
+                selected={selectedInteractable?.id === interactable.id}
+                icon={MousePointerClick}
+                avatarClassName="resource-avatar interactable-avatar"
+                title={interactable.name}
+                subtitle={`${interactableKindLabels[interactable.kind]} · ${
+                  interactable.interactionPrompt || "Interact"
                 }`}
-                onClick={() =>
+                status={interactable.status}
+                dragPayloadRef={dragPayloadRef}
+                onSelect={() =>
                   select({ kind: "interactable", id: interactable.id })
                 }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    select({ kind: "interactable", id: interactable.id });
-                  }
-                }}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "copy";
-                  event.dataTransfer.setData(
-                    "application/x-staging",
-                    interactable.id,
-                  );
-                  dragPayloadRef.current = {
-                    type: "interactable",
-                    id: interactable.id,
-                  };
-                }}
-                onDragEnd={() => {
-                  dragPayloadRef.current = null;
-                }}
-              >
-                <span className="row-avatar resource-avatar interactable-avatar">
-                  <MousePointerClick size={15} />
-                </span>
-                <span className="row-copy">
-                  <strong>{interactable.name}</strong>
-                  <small>
-                    {interactableKindLabels[interactable.kind]} ·{" "}
-                    {interactable.interactionPrompt || "Interact"}
-                  </small>
-                </span>
-                <ReviewControl
-                  value={interactable.status}
-                  onChange={(status) =>
-                    updateInteractable(interactable.id, { status })
-                  }
-                />
-              </div>
+                onStatusChange={(status) =>
+                  updateInteractable(interactable.id, { status })
+                }
+              />
             ))}
 
           {panel === "items" &&
             scene.items.map((item) => (
-              <div
+              <StagingRow
                 key={item.id}
-                role="button"
-                tabIndex={0}
-                draggable
-                className={`staging-row ${
-                  selectedItem?.id === item.id ? "is-selected" : ""
-                }`}
-                onClick={() => select({ kind: "item", id: item.id })}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    select({ kind: "item", id: item.id });
-                  }
-                }}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "copy";
-                  event.dataTransfer.setData("application/x-staging", item.id);
-                  dragPayloadRef.current = { type: "item", id: item.id };
-                }}
-                onDragEnd={() => {
-                  dragPayloadRef.current = null;
-                }}
-              >
-                <span className="row-avatar resource-avatar item-avatar">
-                  <Package size={15} />
-                </span>
-                <span className="row-copy">
-                  <strong>{item.name}</strong>
-                  <small>
-                    Inventory · {itemKindLabels[item.kind]} ·{" "}
-                    {itemStateLabels[item.initialState]}
-                  </small>
-                </span>
-                <ReviewControl
-                  value={item.status}
-                  onChange={(status) => updateItem(item.id, { status })}
-                />
-              </div>
+                kind="item"
+                id={item.id}
+                selected={selectedItem?.id === item.id}
+                icon={Package}
+                avatarClassName="resource-avatar item-avatar"
+                title={item.name}
+                subtitle={`Inventory · ${itemKindLabels[item.kind]} · ${itemStateLabels[item.initialState]}`}
+                status={item.status}
+                dragPayloadRef={dragPayloadRef}
+                onSelect={() => select({ kind: "item", id: item.id })}
+                onStatusChange={(status) => updateItem(item.id, { status })}
+              />
             ))}
 
           {panel === "hud" &&
             scene.hudEvents.map((hudEvent) => (
-              <div
+              <StagingRow
                 key={hudEvent.id}
-                role="button"
-                tabIndex={0}
-                draggable
-                className={`staging-row ${
-                  selectedHud?.id === hudEvent.id ? "is-selected" : ""
+                kind="hud"
+                id={hudEvent.id}
+                selected={selectedHud?.id === hudEvent.id}
+                icon={Bell}
+                avatarClassName="resource-avatar hud-avatar"
+                title={hudChannelLabels[hudEvent.channel]}
+                subtitle={`${hudEvent.text.slice(0, 64) || "No text yet"}${
+                  hudEvent.text.length > 64 ? "…" : ""
                 }`}
-                onClick={() => select({ kind: "hud", id: hudEvent.id })}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    select({ kind: "hud", id: hudEvent.id });
-                  }
-                }}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "copy";
-                  event.dataTransfer.setData(
-                    "application/x-staging",
-                    hudEvent.id,
-                  );
-                  dragPayloadRef.current = { type: "hud", id: hudEvent.id };
-                }}
-                onDragEnd={() => {
-                  dragPayloadRef.current = null;
-                }}
-              >
-                <span className="row-avatar resource-avatar hud-avatar">
-                  <Bell size={15} />
-                </span>
-                <span className="row-copy">
-                  <strong>{hudChannelLabels[hudEvent.channel]}</strong>
-                  <small>
-                    {hudEvent.text.slice(0, 64) || "No text yet"}
-                    {hudEvent.text.length > 64 ? "…" : ""}
-                  </small>
-                </span>
-                <ReviewControl
-                  value={hudEvent.status}
-                  onChange={(status) => updateHudEvent(hudEvent.id, { status })}
-                />
-              </div>
+                status={hudEvent.status}
+                dragPayloadRef={dragPayloadRef}
+                onSelect={() => select({ kind: "hud", id: hudEvent.id })}
+                onStatusChange={(status) =>
+                  updateHudEvent(hudEvent.id, { status })
+                }
+              />
             ))}
         </div>
 
@@ -1377,7 +1268,7 @@ export function StagingEditor({
                   }
                 />
                 <div className="inspector-entity-tools">
-                  <ReviewControl
+                  <ReviewPill
                     value={selectedBeat.status}
                     onChange={(status) =>
                       updateBeat(selectedBeat.id, { status })
@@ -1457,10 +1348,7 @@ export function StagingEditor({
                     value={selectedBeat.eventThreadId || ""}
                     onChange={(event) =>
                       updateBeat(selectedBeat.id, {
-                        eventThreadId: event.target.value
-                          .toUpperCase()
-                          .replace(/[\s-]+/g, "_")
-                          .replace(/[^A-Z0-9_]/g, ""),
+                        eventThreadId: normalizeIdInput(event.target.value),
                       })
                     }
                   />
@@ -1620,7 +1508,7 @@ export function StagingEditor({
                   }
                 />
                 <div className="inspector-entity-tools">
-                  <ReviewControl
+                  <ReviewPill
                     value={selectedNpc.status}
                     onChange={(status) => updateNpc(selectedNpc.id, { status })}
                   />
@@ -1764,7 +1652,7 @@ export function StagingEditor({
                   }
                 />
                 <div className="inspector-entity-tools">
-                  <ReviewControl
+                  <ReviewPill
                     value={selectedInteractable.status}
                     onChange={(status) =>
                       updateInteractable(selectedInteractable.id, { status })
@@ -1777,7 +1665,7 @@ export function StagingEditor({
                       onRequestConfirmation({
                         title: `Delete ${selectedInteractable.name}?`,
                         description:
-                          "This removes the world interactable. Beat triggers and actions targeting it may need review.",
+                          "This removes the world interactable. Beat triggers and actions targeting it will be cleared automatically.",
                         confirmLabel: "Delete interactable",
                         onConfirm: () => {
                           onChange({
@@ -1785,10 +1673,14 @@ export function StagingEditor({
                               (candidate) =>
                                 candidate.id !== selectedInteractable.id,
                             ),
+                            beats: removeResourceFromBeats(
+                              scene.beats,
+                              selectedInteractable.id,
+                            ),
                           });
                           setSelection(null);
                           onNotice(
-                            "Interactable deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                            "Interactable deleted; beat triggers and actions referencing it were cleared. Press ⌘Z or Ctrl+Z to restore it.",
                           );
                         },
                       })
@@ -1875,7 +1767,7 @@ export function StagingEditor({
                   }
                 />
                 <div className="inspector-entity-tools">
-                  <ReviewControl
+                  <ReviewPill
                     value={selectedItem.status}
                     onChange={(status) =>
                       updateItem(selectedItem.id, { status })
@@ -1888,7 +1780,7 @@ export function StagingEditor({
                       onRequestConfirmation({
                         title: `Delete ${selectedItem.name}?`,
                         description:
-                          "This removes the inventory item from the scene. Beat actions targeting it may need review.",
+                          "This removes the inventory item from the scene. Beat triggers and actions targeting it will be cleared automatically.",
                         confirmLabel: "Delete item",
                         onConfirm: () => {
                           onChange({
@@ -1896,10 +1788,14 @@ export function StagingEditor({
                               (candidate) =>
                                 candidate.id !== selectedItem.id,
                             ),
+                            beats: removeResourceFromBeats(
+                              scene.beats,
+                              selectedItem.id,
+                            ),
                           });
                           setSelection(null);
                           onNotice(
-                            "Item deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                            "Item deleted; beat triggers and actions referencing it were cleared. Press ⌘Z or Ctrl+Z to restore it.",
                           );
                         },
                       })
@@ -2009,7 +1905,7 @@ export function StagingEditor({
                   {hudChannelLabels[selectedHud.channel]}
                 </strong>
                 <div className="inspector-entity-tools">
-                  <ReviewControl
+                  <ReviewPill
                     value={selectedHud.status}
                     onChange={(status) =>
                       updateHudEvent(selectedHud.id, { status })
@@ -2024,7 +1920,7 @@ export function StagingEditor({
                         description: `This removes “${selectedHud.text.slice(
                           0,
                           110,
-                        )}” and its player responses. Beat actions targeting it may need review.`,
+                        )}” and its player responses. Beat actions targeting it will be cleared automatically.`,
                         confirmLabel: "Delete HUD event",
                         onConfirm: () => {
                           onChange({
@@ -2032,10 +1928,14 @@ export function StagingEditor({
                               (candidate) =>
                                 candidate.id !== selectedHud.id,
                             ),
+                            beats: removeResourceFromBeats(
+                              scene.beats,
+                              selectedHud.id,
+                            ),
                           });
                           setSelection(null);
                           onNotice(
-                            "HUD event deleted. Press ⌘Z or Ctrl+Z to restore it.",
+                            "HUD event deleted; beat actions referencing it were cleared. Press ⌘Z or Ctrl+Z to restore it.",
                           );
                         },
                       })
@@ -2189,10 +2089,7 @@ export function StagingEditor({
                     value={selectedHud.eventThreadId || ""}
                     onChange={(event) =>
                       updateHudEvent(selectedHud.id, {
-                        eventThreadId: event.target.value
-                          .toUpperCase()
-                          .replace(/[\s-]+/g, "_")
-                          .replace(/[^A-Z0-9_]/g, ""),
+                        eventThreadId: normalizeIdInput(event.target.value),
                       })
                     }
                   />
@@ -2303,10 +2200,7 @@ export function StagingEditor({
                           value={response.setFlag}
                           onChange={(event) =>
                             updateHudResponse(selectedHud.id, response.id, {
-                              setFlag: event.target.value
-                                .toUpperCase()
-                                .replace(/[\s-]+/g, "_")
-                                .replace(/[^A-Z0-9_]/g, ""),
+                              setFlag: normalizeIdInput(event.target.value),
                             })
                           }
                         />

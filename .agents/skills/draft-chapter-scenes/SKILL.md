@@ -45,11 +45,23 @@ flag any new mechanic that does not connect to at least two existing systems.
 
 Find the nearest repository root containing both:
 
-- `chapter-to-game-yaml/schemas/scene_authoring.schema.json`
+- `chapter-to-game-yaml/novel_manifest/schemas/scene_authoring.schema.json`
 - `imports/`
 
 Resolve all project paths from that root. Resolve bundled scripts and references
 from this skill directory.
+
+## Locate the book
+
+Every chapter belongs to exactly one book, identified by a stable kebab-case
+slug (for example `buzzing-electric`), not by chapter ID alone. A book's
+artifacts live entirely under `imports/<BOOK_SLUG>/`.
+
+- If exactly one book folder exists under `imports/`, use it without asking.
+- If none exist yet, or more than one exists, ask the author which book slug
+  this chapter belongs to before writing any files. Never invent or guess a
+  slug for a new book.
+- Do not change an established book slug once chapters exist under it.
 
 ## Enforce the workflow state
 
@@ -134,10 +146,10 @@ Proceed only after explicit approval of the current plan revision.
 2. Read `references/editor-contract.md` completely.
 3. Create one file per approved scene at:
 
-   `imports/<CHAPTER_ID>/<SCENE_ID>.authoring.yaml`
+   `imports/<BOOK_SLUG>/<CHAPTER_ID>/<SCENE_ID>.authoring.yaml`
 
 4. Conform each file to
-   `chapter-to-game-yaml/schemas/scene_authoring.schema.json`.
+   `chapter-to-game-yaml/novel_manifest/schemas/scene_authoring.schema.json`.
 5. Preserve exact source excerpts and source dialogue. Mark extracted dialogue
    `source_locked: true`. Mark invented or proposed dialogue
    `source_locked: false` and keep it minimal.
@@ -156,8 +168,8 @@ Proceed only after explicit approval of the current plan revision.
 
     ```bash
     python3 <skill-dir>/scripts/validate_authoring.py \
-      --schema chapter-to-game-yaml/schemas/scene_authoring.schema.json \
-      imports/<CHAPTER_ID>/*.authoring.yaml
+      --schema chapter-to-game-yaml/novel_manifest/schemas/scene_authoring.schema.json \
+      imports/<BOOK_SLUG>/<CHAPTER_ID>/*.authoring.yaml
     ```
 
 13. Fix all validation errors. Do not bypass the schema.

@@ -12,6 +12,34 @@ export function idSegment(value: string, maxLength = 40) {
     .replace(/_+$/g, "");
 }
 
+/**
+ * Sanitize an id typed by hand, upper-casing and dropping stray characters
+ * while preserving a trailing underscore so the field stays usable mid-word.
+ * Unlike {@link idSegment}, this is for live input, not final slug generation.
+ */
+export function normalizeIdInput(value: string) {
+  return value
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "")
+    .replace(/_{2,}/g, "_");
+}
+
+/**
+ * First unused `${prefix}_${n}` id (n starting at count+1), given the ids
+ * already in use. Used to name newly added beats, actions, and layout elements.
+ */
+export function nextId(prefix: string, existingIds: string[]) {
+  const used = new Set(existingIds);
+  let index = existingIds.length + 1;
+  let candidate = `${prefix}_${index}`;
+  while (used.has(candidate)) {
+    index += 1;
+    candidate = `${prefix}_${index}`;
+  }
+  return candidate;
+}
+
 function contentCadence(value: string) {
   const words = idSegment(value, 54)
     .split("_")

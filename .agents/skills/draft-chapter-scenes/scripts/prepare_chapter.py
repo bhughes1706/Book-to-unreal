@@ -37,6 +37,31 @@ def anchor(text: str, length: int = 120) -> str:
 
 def paragraph_chunks(text: str) -> list[tuple[str, int, int]]:
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.splitlines(keepends=True)
+    nonempty_lines = [line for line in lines if line.strip()]
+    tab_indented_lines = [
+        line for line in nonempty_lines if line.startswith("\t")
+    ]
+
+    # Manuscript TXT exports commonly use one physical line per paragraph with
+    # a leading tab instead of blank-line separators. When that convention is
+    # dominant, treating blank-line blocks as paragraphs collapses an entire
+    # chapter into one or two unusable ledger entries.
+    if (
+        len(nonempty_lines) >= 4
+        and len(tab_indented_lines) / len(nonempty_lines) >= 0.5
+    ):
+        chunks: list[tuple[str, int, int]] = []
+        cursor = 0
+        for raw in lines:
+            stripped = raw.strip()
+            if stripped:
+                leading = raw.find(stripped)
+                start = cursor + leading
+                chunks.append((stripped, start, start + len(stripped)))
+            cursor += len(raw)
+        return chunks
+
     chunks: list[tuple[str, int, int]] = []
     cursor = 0
     for separator in re.finditer(r"\n[ \t]*\n+", normalized):

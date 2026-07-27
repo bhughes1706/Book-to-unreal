@@ -5,7 +5,12 @@ import json
 import unittest
 from pathlib import Path
 
-from novel_manifest.compiler import compile_scene
+from novel_manifest.compiler import (
+    ENGINE_TARGETS,
+    compile_scene,
+    detect_target_name,
+    resolve_target,
+)
 from novel_manifest.loaders import load_yaml
 from novel_manifest.validators import (
     validate_chapter_semantics,
@@ -15,16 +20,15 @@ from novel_manifest.validators import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-CHAPTER_DIR = ROOT / "chapters" / "CH01"
+SCHEMA_DIR = ROOT / "novel_manifest" / "schemas"
+CHAPTER_DIR = ROOT / "tests" / "fixtures" / "CH01"
 SCENE = CHAPTER_DIR / "scenes" / "CH01_S01_DikeBeach.scene.yaml"
-SCENE_SCHEMA = ROOT / "schemas" / "scene_manifest.schema.json"
+SCENE_SCHEMA = SCHEMA_DIR / "scene_manifest.schema.json"
 AUTHORING = CHAPTER_DIR / "scenes" / "CH01_S03_TowardReading.authoring.yaml"
-EVENT_AUTHORING = (
-    ROOT.parent / "imports" / "CH01" / "CH01_S07_HOTEL_BAR.authoring.yaml"
-)
-AUTHORING_SCHEMA = ROOT / "schemas" / "scene_authoring.schema.json"
+EVENT_AUTHORING = CHAPTER_DIR / "scenes" / "CH01_S07_HOTEL_BAR.authoring.yaml"
+AUTHORING_SCHEMA = SCHEMA_DIR / "scene_authoring.schema.json"
 CHAPTER = CHAPTER_DIR / "CH01.manifest.yaml"
-CHAPTER_SCHEMA = ROOT / "schemas" / "chapter_manifest.schema.json"
+CHAPTER_SCHEMA = SCHEMA_DIR / "chapter_manifest.schema.json"
 SOURCE = CHAPTER_DIR / "source" / "Ch1.extracted.txt"
 
 
@@ -48,6 +52,52 @@ class SceneManifestTests(unittest.TestCase):
         first = json.dumps(compile_scene(self.document), sort_keys=True)
         second = json.dumps(compile_scene(self.document), sort_keys=True)
         self.assertEqual(first, second)
+
+    def test_default_target_is_unreal(self) -> None:
+        compiled = compile_scene(self.document)
+        self.assertEqual("unreal", compiled["target"]["engine"])
+        self.assertEqual("z", compiled["target"]["upAxis"])
+        self.assertEqual("left", compiled["target"]["handedness"])
+
+    def test_compile_godot_keeps_meters_and_reorients_up_axis(self) -> None:
+        compiled = compile_scene(self.document, "godot")
+        self.assertEqual("godot", compiled["target"]["engine"])
+        self.assertEqual("y", compiled["target"]["upAxis"])
+        self.assertEqual("right", compiled["target"]["handedness"])
+        wall = compiled["runtime"]["environment"]["wall"]
+        # Meters, not centimeters — value and suffix both change.
+        self.assertEqual(120.0, wall["lengthM"])
+        self.assertNotIn("lengthCm", wall)
+        self.assertEqual(5.5, compiled["runtime"]["beats"][2]["actions"][1]["speedMps"])
+        # Source path point [62, 0, 0.2] (x, depth, up) -> Godot (x, up, -depth).
+        self.assertEqual(
+            [62.0, 0.2, 0.0],
+            compiled["runtime"]["resources"]["paths"][0]["pointsM"][0],
+        )
+
+    def test_compile_unity_keeps_meters(self) -> None:
+        compiled = compile_scene(self.document, "unity")
+        self.assertEqual("unity", compiled["target"]["engine"])
+        self.assertEqual("y", compiled["target"]["upAxis"])
+        self.assertEqual("left", compiled["target"]["handedness"])
+        self.assertEqual(120.0, compiled["runtime"]["environment"]["wall"]["lengthM"])
+
+    def test_axis_remap_distinguishes_handedness(self) -> None:
+        point = [1.0, 2.0, 3.0]  # x = run, y = depth, z = up
+        self.assertEqual([1.0, 2.0, 3.0], ENGINE_TARGETS["unreal"].remap_point(point))
+        self.assertEqual([1.0, 3.0, 2.0], ENGINE_TARGETS["unity"].remap_point(point))
+        self.assertEqual([1.0, 3.0, -2.0], ENGINE_TARGETS["godot"].remap_point(point))
+
+    def test_target_is_auto_detected_from_design_engine(self) -> None:
+        changed = copy.deepcopy(self.document)
+        changed.setdefault("design", {})["engine"] = "godot"
+        self.assertEqual("godot", detect_target_name(changed))
+        compiled = compile_scene(changed, detect_target_name(changed))
+        self.assertEqual("godot", compiled["target"]["engine"])
+
+    def test_unknown_target_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            resolve_target("cryengine")
 
     def test_unresolved_resource_is_rejected(self) -> None:
         changed = copy.deepcopy(self.document)
@@ -82,23 +132,6 @@ class SceneManifestTests(unittest.TestCase):
         changed["runtime"]["camera"]["mystery_setting"] = True
         diagnostics = validate_schema(changed, SCENE_SCHEMA)
         self.assertIn("SCHEMA", {item.code for item in diagnostics})
-
-
-class PackagingTests(unittest.TestCase):
-    def test_packaged_schemas_match_repository_schemas(self) -> None:
-        for name in (
-            "chapter_manifest.schema.json",
-            "scene_authoring.schema.json",
-            "scene_manifest.schema.json",
-        ):
-            self.assertEqual(
-                json.loads((ROOT / "schemas" / name).read_text(encoding="utf-8")),
-                json.loads(
-                    (ROOT / "novel_manifest" / "schemas" / name).read_text(
-                        encoding="utf-8"
-                    )
-                ),
-            )
 
 
 class SceneAuthoringTests(unittest.TestCase):

@@ -58,7 +58,7 @@ the author revises the proposal, increment the plan revision and return to
 
    ```bash
    node <skill-dir>/scripts/authoring_hash.mjs \
-     imports/<CHAPTER_ID>/<SCENE_ID>.authoring.yaml
+     imports/<BOOK_SLUG>/<CHAPTER_ID>/<SCENE_ID>.authoring.yaml
    ```
 
    Record the result as the proposed `source_authoring.sha256`.
@@ -101,7 +101,8 @@ End exactly with:
 
 ## Phase 3: build or merge the approved layout
 
-1. Write `imports/<CHAPTER_ID>/<SCENE_ID>.scene.yaml`.
+1. Write `imports/<BOOK_SLUG>/<CHAPTER_ID>/<SCENE_ID>.scene.yaml`, using the
+   same book slug as the source authoring file.
 2. Use `schema_version: 0.3.0` and `kind: scene_manifest`.
 3. Store the exact authoring path and SHA-256 under `source_authoring`.
 4. Copy story IDs into `runtime.story_bindings`; do not rename them.
@@ -111,6 +112,8 @@ End exactly with:
    - update story-owned bindings from the approved authoring YAML;
    - preserve hand-authored coordinates, dimensions, geometry, paths, camera,
      assets, and layout notes;
+   - preserve any existing `design.engine`; it is the book's editor-owned
+     compile target and must survive the merge untouched;
    - add new story resources as review-needed placements;
    - retain removed story resources with `orphaned: true`;
    - list unresolved items under `merge.unresolved`;

@@ -16,6 +16,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ConfirmationRequest } from "@/components/confirmation-dialog";
+import { downloadText } from "@/lib/download";
+import { idSegment, nextId } from "@/lib/id-builder";
 import type {
   LayoutEnvironmentPiece,
   LayoutPath,
@@ -48,28 +50,9 @@ const layoutStatusLabels: Record<LayoutStatus, string> = {
   layout_approved: "Layout approved",
 };
 
-function downloadYaml(filename: string, content: string) {
-  const blob = new Blob([content], { type: "application/yaml" });
-  const href = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = href;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(href);
-}
-
 function numberValue(value: string, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function idSegment(value: string) {
-  return value
-    .normalize("NFKD")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/[\s-]+/g, "_")
-    .toUpperCase();
 }
 
 function placementColor(kind: LayoutPlacementKind) {
@@ -82,38 +65,23 @@ function placementColor(kind: LayoutPlacementKind) {
   return "#67716c";
 }
 
-function nextPlacementId(layout: SceneLayoutDraft) {
-  const used = new Set(layout.placements.map((placement) => placement.id));
-  let index = layout.placements.length + 1;
-  let id = `MARKER_CUSTOM_${index}`;
-  while (used.has(id)) {
-    index += 1;
-    id = `MARKER_CUSTOM_${index}`;
-  }
-  return id;
-}
+const nextPlacementId = (layout: SceneLayoutDraft) =>
+  nextId(
+    "MARKER_CUSTOM",
+    layout.placements.map((placement) => placement.id),
+  );
 
-function nextPieceId(layout: SceneLayoutDraft) {
-  const used = new Set(layout.environmentPieces.map((piece) => piece.id));
-  let index = layout.environmentPieces.length + 1;
-  let id = `GEO_BLOCKOUT_${index}`;
-  while (used.has(id)) {
-    index += 1;
-    id = `GEO_BLOCKOUT_${index}`;
-  }
-  return id;
-}
+const nextPieceId = (layout: SceneLayoutDraft) =>
+  nextId(
+    "GEO_BLOCKOUT",
+    layout.environmentPieces.map((piece) => piece.id),
+  );
 
-function nextPathId(layout: SceneLayoutDraft) {
-  const used = new Set(layout.paths.map((path) => path.id));
-  let index = layout.paths.length + 1;
-  let id = `PATH_BLOCKOUT_${index}`;
-  while (used.has(id)) {
-    index += 1;
-    id = `PATH_BLOCKOUT_${index}`;
-  }
-  return id;
-}
+const nextPathId = (layout: SceneLayoutDraft) =>
+  nextId(
+    "PATH_BLOCKOUT",
+    layout.paths.map((path) => path.id),
+  );
 
 export function LayoutEditor({
   scene,
@@ -359,7 +327,11 @@ export function LayoutEditor({
           <button
             className="button button-primary"
             onClick={() => {
-              downloadYaml(`${scene.id}.scene.yaml`, manifestYaml);
+              downloadText(
+                `${scene.id}.scene.yaml`,
+                manifestYaml,
+                "application/yaml",
+              );
               onNotice("Runtime scene YAML export prepared.");
             }}
           >
